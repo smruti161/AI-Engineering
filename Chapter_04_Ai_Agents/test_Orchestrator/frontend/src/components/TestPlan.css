@@ -1,0 +1,17 @@
+.test-plan-body {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+.test-plan-body h1 { font-size: 1.5rem; margin: 24px 0 12px; color: var(--text-heading); border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+.test-plan-body h2 { font-size: 1.2rem; margin: 20px 0 8px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.test-plan-body h3 { font-size: 1rem; margin: 16px 0 6px; color: var(--accent); }
+.test-plan-body p { margin-bottom: 10px; }
+.test-plan-body ul, .test-plan-body ol { padding-left: 20px; margin-bottom: 10px; }
+.test-plan-body li { margin-bottom: 4px; }
+.test-plan-body table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.test-plan-body th, .test-plan-body td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+.test-plan-body th { background: var(--bg-stepper); font-weight: 700; }
+.test-plan-body tr:nth-child(even) { background: var(--connection-bg); }
+.test-plan-body code { background: var(--bg-stepper); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); }
+.test-plan-body blockquote { border-left: 4px solid var(--accent); padding-left: 12px; color: var(--text-muted); margin: 8px 0; }

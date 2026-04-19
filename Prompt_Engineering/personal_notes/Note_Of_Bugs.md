@@ -1,0 +1,1 @@
+I have navigated to app.vwo.com and when i click on that it shows me error message.

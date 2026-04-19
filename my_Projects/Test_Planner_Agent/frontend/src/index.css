@@ -1,0 +1,60 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Light theme (default) ── */
+:root, [data-theme="light"] {
+  --bg: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-stepper: #f1f5f9;
+  --bg-step-active: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-heading: #0f172a;
+  --border: #e2e8f0;
+  --border-input: #d1d5db;
+  --btn-primary: #2563eb;
+  --btn-primary-hover: #1d4ed8;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-border: #d1d5db;
+  --accent: #3b82f6;
+  --icon-bg: #eff6ff;
+  --connection-bg: #f8fafc;
+  --connected-bg: #f0fdf4;
+  --connected-border: #bbf7d0;
+  --connected-text: #166534;
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --bg-input: #253347;
+  --bg-stepper: #1e293b;
+  --bg-step-active: #334155;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-heading: #f1f5f9;
+  --border: #334155;
+  --border-input: #475569;
+  --btn-primary: #3b82f6;
+  --btn-primary-hover: #2563eb;
+  --btn-secondary-bg: #253347;
+  --btn-secondary-border: #475569;
+  --accent: #60a5fa;
+  --icon-bg: #1e3a5f;
+  --connection-bg: #253347;
+  --connected-bg: #052e16;
+  --connected-border: #166534;
+  --connected-text: #4ade80;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.25s, color 0.25s;
+}
+
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; }
