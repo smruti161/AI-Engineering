@@ -67,6 +67,7 @@ function escape(v: string) {
 function toZephyrCSV(headers: string[], rows: string[][]): string {
   const stepIdx = headers.findIndex(h => /step-by-step.*step$|^test script.*step$/i.test(h) || /^test.?step$/i.test(h))
   const expectedIdx = headers.findIndex(h => /expected.?result/i.test(h))
+  const testDataIdx = headers.findIndex(h => /test.?data/i.test(h))
 
   const outHeaders = [...headers]
 
@@ -74,10 +75,9 @@ function toZephyrCSV(headers: string[], rows: string[][]): string {
 
   for (const row of rows) {
     const stepsRaw = stepIdx !== -1 ? (row[stepIdx] || '') : ''
-    // Split on " / " separator that the LLM uses
     const steps = stepsRaw
       .split(/\s*\/\s*/)
-      .map(s => s.replace(/^\d+\.\s*/, '').trim()) // strip "1. " prefix
+      .map(s => s.replace(/^\d+\.\s*/, '').trim())
       .filter(Boolean)
 
     if (steps.length === 0) {
@@ -85,14 +85,29 @@ function toZephyrCSV(headers: string[], rows: string[][]): string {
       continue
     }
 
+    const expectedRaw = expectedIdx !== -1 ? (row[expectedIdx] || '') : ''
+    const expectedParts = expectedRaw
+      .split(/\s*\/\s*/)
+      .map(s => s.replace(/^\d+\.\s*/, '').trim())
+      .filter(Boolean)
+
+    const testDataRaw = testDataIdx !== -1 ? (row[testDataIdx] || '') : ''
+    const testDataParts = testDataRaw
+      .split(/\s*\/\s*/)
+      .map(s => s.replace(/^\d+\.\s*/, '').trim())
+
     steps.forEach((stepText, idx) => {
       const isFirst = idx === 0
-      const isLast = idx === steps.length - 1
       const newRow = row.map((cell, ci) => {
         if (ci === stepIdx) return stepText
-        // Expected Result only on last step row
-        if (ci === expectedIdx) return isLast ? cell : ''
-        // All metadata only on the first step row; subsequent rows are blank
+        if (ci === expectedIdx) {
+          if (expectedParts.length > 1) return expectedParts[idx] ?? ''
+          return isFirst ? cell : ''
+        }
+        if (ci === testDataIdx) {
+          if (testDataParts.length > 1) return testDataParts[idx] ?? ''
+          return isFirst ? cell : ''
+        }
         return isFirst ? cell : ''
       })
       expandedRows.push(newRow)
@@ -142,8 +157,16 @@ export default function TestCaseCreator() {
       const lc = l.data.connections || []
       setJiraConns(jc)
       setLlmConns(lc)
-      if (jc.length) setForm(f => ({ ...f, connectionName: jc[0].name }))
-      if (lc.length) setForm(f => ({ ...f, llmConnectionName: lc[0].name }))
+      const savedLlm = localStorage.getItem('tc_llm_connection')
+      const savedJira = localStorage.getItem('tc_jira_connection')
+      if (jc.length) {
+        const match = savedJira && jc.find((c: any) => c.name === savedJira)
+        setForm(f => ({ ...f, connectionName: match ? savedJira! : jc[0].name }))
+      }
+      if (lc.length) {
+        const match = savedLlm && lc.find((c: any) => c.name === savedLlm)
+        setForm(f => ({ ...f, llmConnectionName: match ? savedLlm! : lc[0].name }))
+      }
     })
   }, [])
 
@@ -347,7 +370,10 @@ export default function TestCaseCreator() {
               <div className="form-group">
                 <label>Jira Connection<span>*</span></label>
                 <select value={form.connectionName}
-                  onChange={e => setForm({ ...form, connectionName: e.target.value })}>
+                  onChange={e => {
+                    localStorage.setItem('tc_jira_connection', e.target.value)
+                    setForm({ ...form, connectionName: e.target.value })
+                  }}>
                   <option value="">Select connection...</option>
                   {jiraConns.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                 </select>
@@ -355,7 +381,10 @@ export default function TestCaseCreator() {
               <div className="form-group">
                 <label>LLM Connection<span>*</span></label>
                 <select value={form.llmConnectionName}
-                  onChange={e => setForm({ ...form, llmConnectionName: e.target.value })}>
+                  onChange={e => {
+                    localStorage.setItem('tc_llm_connection', e.target.value)
+                    setForm({ ...form, llmConnectionName: e.target.value })
+                  }}>
                   <option value="">Select LLM...</option>
                   {llmConns.map(c => <option key={c.name} value={c.name}>{c.name} ({c.provider})</option>)}
                 </select>

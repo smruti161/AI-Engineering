@@ -6,8 +6,16 @@ Prompt logic is identical across all providers.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 import re
+
+ANTI_HALLUCINATION_PATH = Path(__file__).parent.parent.parent / "anti_haluination_rules" / "anti_hallucination.md"
+
+def _get_anti_hallucination_rules() -> str:
+    if not ANTI_HALLUCINATION_PATH.exists():
+        return ""
+    return ANTI_HALLUCINATION_PATH.read_text(encoding="utf-8")
 
 
 @dataclass
@@ -24,7 +32,7 @@ class LLMConnection:
         "groq": "llama-3.3-70b-versatile",
         "grok": "grok-3-mini",
         "ollama": "llama3.2",
-        "falcon": "tiiuae/falcon-40b-instruct",
+        "falcon": "claude-sonnet-4-20250514",
     }
 
     def __post_init__(self):
@@ -102,7 +110,9 @@ def generate_test_plan(
 # ── System & User Prompt Builders ────────────────────────────────────────────
 
 def _build_system_prompt(template: str) -> str:
-    return f"""You are a senior QA engineer specializing in software testing.
+    anti_hallucination = _get_anti_hallucination_rules()
+    ah_prefix = f"{anti_hallucination}\n\n---\n\n" if anti_hallucination else ""
+    return f"""{ah_prefix}You are a senior QA engineer specializing in software testing.
 
 Your task is to generate a comprehensive test plan based on Jira requirements provided by the user.
 
@@ -255,7 +265,7 @@ def _generate_grok(conn: LLMConnection, system_prompt: str, user_message: str) -
             "max_tokens": 4096,
             "temperature": 0.3,
         },
-        timeout=120,
+        timeout=90,
     )
     if resp.status_code == 200:
         return {"success": True, "test_plan": resp.json()["choices"][0]["message"]["content"]}
@@ -307,7 +317,7 @@ def _generate_ollama(conn: LLMConnection, system_prompt: str, user_message: str)
 
 def _test_falcon(conn: LLMConnection) -> dict:
     import requests as req
-    base = (conn.base_url or "https://api.ai71.ai/v1").rstrip("/")
+    base = (conn.base_url or "https://falconai.planview-prod.io/api").rstrip("/")
     resp = req.post(
         f"{base}/chat/completions",
         headers={
@@ -328,7 +338,7 @@ def _test_falcon(conn: LLMConnection) -> dict:
 
 def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str) -> dict:
     import requests as req
-    base = (conn.base_url or "https://api.ai71.ai/v1").rstrip("/")
+    base = (conn.base_url or "https://falconai.planview-prod.io/api").rstrip("/")
     resp = req.post(
         f"{base}/chat/completions",
         headers={
@@ -344,7 +354,7 @@ def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str)
             "max_tokens": 4096,
             "temperature": 0.3,
         },
-        timeout=120,
+        timeout=90,
     )
     if resp.status_code == 200:
         return {"success": True, "test_plan": resp.json()["choices"][0]["message"]["content"]}

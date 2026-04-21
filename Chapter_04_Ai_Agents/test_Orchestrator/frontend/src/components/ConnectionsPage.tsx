@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import {
   getConnections, saveConnection, testJiraConnection, deleteConnection,
   getLLMConnections, saveLLMConnection, testLLMConnection, deleteLLMConnection,
+  getFalconModels,
 } from '../api'
 
 const PROVIDERS = [
@@ -14,7 +15,13 @@ const PROVIDERS = [
   { value: 'groq',   label: 'GROQ',                modelPlaceholder: 'llama-3.3-70b-versatile' },
   { value: 'grok',   label: 'Grok (xAI)',          modelPlaceholder: 'grok-3-mini' },
   { value: 'ollama', label: 'Ollama (Local)',       modelPlaceholder: 'llama3.2' },
-  { value: 'falcon', label: 'Falcon AI',            modelPlaceholder: 'tiiuae/falcon-40b-instruct' },
+  { value: 'falcon', label: 'Falcon AI (Planview)',  modelPlaceholder: 'claude-sonnet-4-20250514' },
+]
+
+const FALCON_MODELS = [
+  'claude-sonnet-4-20250514',
+  'claude-opus-4-20250514',
+  'claude-haiku-4-5-20251001',
 ]
 
 interface Props { onConnectionsReady?: () => void }
@@ -39,6 +46,8 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
   const [llmTesting, setLlmTesting]       = useState(false)
   const [llmTestResult, setLlmTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [llmSaving, setLlmSaving]         = useState(false)
+  const [falconModels, setFalconModels]   = useState<string[]>(FALCON_MODELS)
+  const [falconLoading, setFalconLoading] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -119,6 +128,23 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
   function startEditLLM(c: any) {
     setLlmForm({ name: c.name, provider: c.provider, model: c.model, api_key: '', base_url: c.base_url || '' })
     setEditingLLM(c); setShowLlmForm(true); setExpandedLLM(null); setLlmTestResult(null)
+  }
+
+  async function handleLoadFalconModels() {
+    if (!llmForm.api_key) return
+    setFalconLoading(true)
+    try {
+      const res = await getFalconModels({ api_key: llmForm.api_key, base_url: llmForm.base_url || undefined })
+      if (res.data.success && res.data.models.length > 0) {
+        setFalconModels(res.data.models)
+        setLlmForm(f => ({ ...f, model: res.data.models[0] }))
+      } else {
+        setLlmTestResult({ success: false, message: res.data.error || 'Could not fetch models.' })
+      }
+    } catch (e: any) {
+      setLlmTestResult({ success: false, message: e.response?.data?.detail || 'Failed to fetch models.' })
+    }
+    setFalconLoading(false)
   }
 
   const providerMeta = PROVIDERS.find(p => p.value === llmForm.provider)
@@ -305,7 +331,10 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
               <div className="form-group">
                 <label>Provider<span>*</span></label>
                 <select value={llmForm.provider}
-                  onChange={e => setLlmForm({ ...llmForm, provider: e.target.value, model: '' })}>
+                  onChange={e => {
+                    const p = e.target.value
+                    setLlmForm({ ...llmForm, provider: p, model: p === 'falcon' ? FALCON_MODELS[0] : '' })
+                  }}>
                   {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
@@ -313,8 +342,22 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
             <div className="form-row two-col">
               <div className="form-group">
                 <label>Model<span>*</span></label>
-                <input placeholder={providerMeta?.modelPlaceholder || 'model name'} value={llmForm.model}
-                  onChange={e => setLlmForm({ ...llmForm, model: e.target.value })} />
+                {llmForm.provider === 'falcon' ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select style={{ flex: 1 }} value={llmForm.model}
+                      onChange={e => setLlmForm({ ...llmForm, model: e.target.value })}>
+                      {falconModels.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <button type="button" className="btn-outline" style={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}
+                      onClick={handleLoadFalconModels}
+                      disabled={!llmForm.api_key || falconLoading}>
+                      {falconLoading ? '...' : 'Load Models'}
+                    </button>
+                  </div>
+                ) : (
+                  <input placeholder={providerMeta?.modelPlaceholder || 'model name'} value={llmForm.model}
+                    onChange={e => setLlmForm({ ...llmForm, model: e.target.value })} />
+                )}
               </div>
               {llmForm.provider !== 'ollama' ? (
                 <div className="form-group">
@@ -333,16 +376,6 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
                 </div>
               )}
             </div>
-            {llmForm.provider === 'falcon' && (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Falcon Base URL <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>(optional)</span></label>
-                  <input placeholder="https://api.ai71.ai/v1  or  your internal Falcon endpoint"
-                    value={llmForm.base_url}
-                    onChange={e => setLlmForm({ ...llmForm, base_url: e.target.value })} />
-                </div>
-              </div>
-            )}
 
             {llmTestResult && (
               <div className={`alert ${llmTestResult.success ? 'alert-success' : 'alert-error'}`}>

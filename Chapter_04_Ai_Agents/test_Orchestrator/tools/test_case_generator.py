@@ -14,11 +14,17 @@ from tools.pdf_exporter import export_to_markdown
 from tools.doc_exporter import export_to_doc
 
 TEMPLATE_PATH = Path(__file__).parent.parent.parent / "test_case_templates" / "test_case_format.md"
+ANTI_HALLUCINATION_PATH = Path(__file__).parent.parent.parent / "anti_haluination_rules" / "anti_hallucination.md"
 
 def _get_template() -> str:
     if not TEMPLATE_PATH.exists():
         raise FileNotFoundError(f"Test cases template not found at: {TEMPLATE_PATH}")
     return TEMPLATE_PATH.read_text(encoding="utf-8")
+
+def _get_anti_hallucination_rules() -> str:
+    if not ANTI_HALLUCINATION_PATH.exists():
+        return ""
+    return ANTI_HALLUCINATION_PATH.read_text(encoding="utf-8")
 
 
 def run(
@@ -45,9 +51,11 @@ def run(
     }
     """
     template = _get_template()
+    anti_hallucination = _get_anti_hallucination_rules()
     missing_info = check_missing_info(issues)
 
-    system_prompt = f"""{template}
+    ah_prefix = f"{anti_hallucination}\n\n---\n\n" if anti_hallucination else ""
+    system_prompt = f"""{ah_prefix}{template}
 
 ---
 

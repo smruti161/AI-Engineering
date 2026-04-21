@@ -192,6 +192,29 @@ def save_llm_connection(req: LLMConnectionRequest):
     return {"success": True, "message": f"LLM connection '{req.name}' saved."}
 
 
+class FalconModelsRequest(BaseModel):
+    api_key: str
+    base_url: Optional[str] = None
+
+
+@app.post("/api/llm-connections/falcon-models")
+def get_falcon_models(req: FalconModelsRequest):
+    import requests as req_lib
+    base = (req.base_url or "https://falconai.planview-prod.io/api").rstrip("/")
+    try:
+        resp = req_lib.get(
+            f"{base}/models",
+            headers={"Authorization": f"Bearer {req.api_key}"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            models = [m["id"] for m in resp.json().get("data", [])]
+            return {"success": True, "models": models}
+        return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/llm-connections/test")
 def test_llm_connection_endpoint(req: LLMConnectionRequest):
     conn = LLMConnection(

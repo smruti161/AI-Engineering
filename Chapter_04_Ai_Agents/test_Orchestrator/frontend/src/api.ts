@@ -5,7 +5,7 @@
 
 import axios from 'axios'
 
-const API = axios.create({ baseURL: '/api' })
+const API = axios.create({ baseURL: '/api', timeout: 300000 })
 
 // ── Jira Connections ─────────────────────────────────────────────────────────
 
@@ -34,6 +34,9 @@ export const testLLMConnection = (data: {
 }) => API.post('/llm-connections/test', data)
 
 export const deleteLLMConnection = (name: string) => API.delete(`/llm-connections/${encodeURIComponent(name)}`)
+
+export const getFalconModels = (data: { api_key: string; base_url?: string }) =>
+  API.post('/llm-connections/falcon-models', data)
 
 // ── Issues ───────────────────────────────────────────────────────────────────
 
