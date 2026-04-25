@@ -104,12 +104,6 @@ export default function FetchIssues({ fetchState, setFetchState, onNext, onBack 
         <h2>Fetch Jira Requirements</h2>
         <p>Enter your Jira IDs to fetch issues and generate a test plan</p>
 
-        {selectedConn && (
-          <div className="connected-banner">
-            <span>Connected to: <strong>{selectedConn.name}</strong> ({selectedConn.url})</span>
-            <button className="btn-outline" onClick={onBack}>Change</button>
-          </div>
-        )}
 
         <div className="form-row two-col">
           <div className="form-group">

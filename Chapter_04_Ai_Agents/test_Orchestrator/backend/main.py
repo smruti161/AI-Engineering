@@ -193,18 +193,27 @@ def save_llm_connection(req: LLMConnectionRequest):
 
 
 class FalconModelsRequest(BaseModel):
-    api_key: str
+    api_key: Optional[str] = None
     base_url: Optional[str] = None
+    connection_name: Optional[str] = None  # use stored key when editing
 
 
 @app.post("/api/llm-connections/falcon-models")
 def get_falcon_models(req: FalconModelsRequest):
     import requests as req_lib
+    api_key = req.api_key or ""
+    # If no key supplied, look it up from the stored connection
+    if not api_key and req.connection_name:
+        conns = _load_llm_connections()
+        stored = conns.get(req.connection_name, {})
+        api_key = stored.get("api_key", "")
+    if not api_key:
+        return {"success": False, "error": "API key is required to load models."}
     base = (req.base_url or "https://falconai.planview-prod.io/api").rstrip("/")
     try:
         resp = req_lib.get(
             f"{base}/models",
-            headers={"Authorization": f"Bearer {req.api_key}"},
+            headers={"Authorization": f"Bearer {api_key}"},
             timeout=10,
         )
         if resp.status_code == 200:
@@ -346,12 +355,24 @@ def generate_cases(req: GenerateRequest):
 
 @app.get("/api/test-cases/download")
 def download_test_cases_file(path: str):
-    """Download a generated test cases file by its path (returned in generate response)."""
+    """Download a generated test cases file. .docx is generated on first request."""
     resolved = _resolve_file(path)
-    if not resolved:
-        raise HTTPException(status_code=404, detail="File not found.")
-    if resolved.suffix == ".md":
+
+    if resolved and resolved.suffix == ".md":
         return FileResponse(str(resolved), media_type="text/markdown", filename=resolved.name)
+
+    # .docx — generate from the paired .md file if not yet built
+    if not resolved or not resolved.exists():
+        docx_path = Path(path)
+        md_path = _resolve_file(str(docx_path.with_suffix(".md")))
+        if not md_path:
+            raise HTTPException(status_code=404, detail="Source markdown file not found.")
+        from tools.doc_exporter import export_to_doc
+        parts = docx_path.stem.split("_")  # test_plan_KEY_TIMESTAMP
+        project_key = parts[2] if len(parts) > 2 else "TC"
+        timestamp = "_".join(parts[3:]) if len(parts) > 3 else "000000_000000"
+        resolved = export_to_doc(md_path.read_text(encoding="utf-8"), project_key, timestamp)
+
     return FileResponse(
         str(resolved),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

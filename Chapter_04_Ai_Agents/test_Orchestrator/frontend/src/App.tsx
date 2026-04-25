@@ -19,6 +19,7 @@ export interface Issue {
 export interface FetchState {
   connectionName: string; llmConnectionName: string
   productName: string; projectKey: string; issues: Issue[]; additionalContext: string
+  coverage?: string
 }
 
 const NAV_ITEMS: { id: Module; label: string; desc: string; icon: React.ReactNode; available: boolean }[] = [
@@ -287,6 +288,7 @@ export default function App() {
                     {step === 3 && (
                       <TestPlan
                         result={testPlanResult}
+                        coverage={fetchState.coverage}
                         onBack={() => setStep(2)}
                         onRestart={() => { setStep(1); setTestPlanResult(null) }}
                       />

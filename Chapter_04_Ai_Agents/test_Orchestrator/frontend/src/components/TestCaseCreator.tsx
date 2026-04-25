@@ -4,7 +4,7 @@
  * Self-contained module — uses saved connections but manages its own state.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   getConnections, getLLMConnections, fetchIssues, generateTestCases,
 } from '../api'
@@ -23,6 +23,61 @@ interface TableSection {
   rows: string[][]
 }
 
+// Resize + compress an image File to max 1280 px on the longest side, JPEG 0.85 quality.
+// Returns { data: base64, media_type } ready for the backend.
+function compressImage(file: File): Promise<{ data: string; media_type: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      try {
+        URL.revokeObjectURL(objectUrl)
+
+        let { width, height } = img
+        if (!width || !height) {
+          reject(new Error(`Image "${file.name}" has invalid dimensions (${width}×${height})`))
+          return
+        }
+
+        const MAX = 1280
+        if (width > MAX || height > MAX) {
+          if (width >= height) { height = Math.round((height * MAX) / width); width = MAX }
+          else { width = Math.round((width * MAX) / height); height = MAX }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Canvas 2D context unavailable — cannot compress image'))
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        const base64 = dataUrl.split(',')[1]
+        if (!base64) {
+          reject(new Error(`Failed to encode "${file.name}" as JPEG`))
+          return
+        }
+        resolve({ data: base64, media_type: 'image/jpeg' })
+      } catch (err) {
+        reject(err)
+      }
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error(`Could not load image "${file.name}" — unsupported format?`))
+    }
+
+    img.src = objectUrl
+  })
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -32,7 +87,10 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function parseMarkdownTables(markdown: string): TableSection[] {
   const sections: TableSection[] = []
-  const lines = markdown.split('\n')
+  // Strip wrapping code-fence lines (``` or ```markdown etc.) so accidental fences don't hide tables
+  const lines = markdown
+    .split('\n')
+    .filter(l => !/^```/.test(l.trim()))
   let currentHeading = ''
   let i = 0
 
@@ -64,10 +122,31 @@ function escape(v: string) {
   return `"${(v || '').replace(/"/g, '""')}"`
 }
 
+// Convert "1. item / 2. item / 3. item" to "item\nitem\nitem" for multi-line cell display in Excel
+function expandToLines(v: string): string {
+  if (!v) return v
+  // Numbered list format: "1. cond / 2. cond"
+  if (/^\d+\.\s/.test(v.trim())) {
+    return v.split(/\s+\/\s+/).map(s => s.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).join('\n')
+  }
+  return v
+}
+
+// For Precondition: split on " / " regardless of numbering, so each condition is on its own line
+function expandPrecondition(v: string): string {
+  if (!v) return v
+  if (/^\d+\.\s/.test(v.trim())) {
+    return v.split(/\s+\/\s+/).map(s => s.replace(/^\d+\.\s*/, '').trim()).filter(Boolean).join('\n')
+  }
+  // Plain text with ". " separator — split into lines
+  return v.split(/\.\s+/).map(s => s.trim()).filter(Boolean).map(s => s.endsWith('.') ? s : s + '.').join('\n').replace(/\.\n/g, '\n').replace(/\.$/, '')
+}
+
 function toZephyrCSV(headers: string[], rows: string[][]): string {
   const stepIdx = headers.findIndex(h => /step-by-step.*step$|^test script.*step$/i.test(h) || /^test.?step$/i.test(h))
   const expectedIdx = headers.findIndex(h => /expected.?result/i.test(h))
   const testDataIdx = headers.findIndex(h => /test.?data/i.test(h))
+  const preconditionIdx = headers.findIndex(h => /precondition/i.test(h))
 
   const outHeaders = [...headers]
 
@@ -76,25 +155,29 @@ function toZephyrCSV(headers: string[], rows: string[][]): string {
   for (const row of rows) {
     const stepsRaw = stepIdx !== -1 ? (row[stepIdx] || '') : ''
     const steps = stepsRaw
-      .split(/\s*\/\s*/)
+      .split(/\s+\/\s+/)
       .map(s => s.replace(/^\d+\.\s*/, '').trim())
       .filter(Boolean)
 
     if (steps.length === 0) {
-      expandedRows.push(row)
+      expandedRows.push(row.map((cell, ci) => {
+        if (ci === preconditionIdx) return expandPrecondition(cell)
+        return cell
+      }))
       continue
     }
 
     const expectedRaw = expectedIdx !== -1 ? (row[expectedIdx] || '') : ''
     const expectedParts = expectedRaw
-      .split(/\s*\/\s*/)
+      .split(/\s+\/\s+/)
       .map(s => s.replace(/^\d+\.\s*/, '').trim())
       .filter(Boolean)
 
     const testDataRaw = testDataIdx !== -1 ? (row[testDataIdx] || '') : ''
     const testDataParts = testDataRaw
-      .split(/\s*\/\s*/)
+      .split(/\s+\/\s+/)
       .map(s => s.replace(/^\d+\.\s*/, '').trim())
+      .filter(Boolean)
 
     steps.forEach((stepText, idx) => {
       const isFirst = idx === 0
@@ -102,12 +185,16 @@ function toZephyrCSV(headers: string[], rows: string[][]): string {
         if (ci === stepIdx) return stepText
         if (ci === expectedIdx) {
           if (expectedParts.length > 1) return expectedParts[idx] ?? ''
-          return isFirst ? cell : ''
+          // single expected result — repeat on every step row
+          return expectedParts[0] ?? (isFirst ? cell : '')
         }
         if (ci === testDataIdx) {
           if (testDataParts.length > 1) return testDataParts[idx] ?? ''
-          return isFirst ? cell : ''
+          // single test data value (e.g. "N/A") — repeat on every step row
+          return testDataParts[0] ?? (isFirst ? cell : '')
         }
+        // Precondition: expand to multiline on first step row only
+        if (ci === preconditionIdx) return isFirst ? expandPrecondition(cell) : ''
         return isFirst ? cell : ''
       })
       expandedRows.push(newRow)
@@ -115,6 +202,30 @@ function toZephyrCSV(headers: string[], rows: string[][]): string {
   }
 
   return [outHeaders, ...expandedRows].map(row => row.map(escape).join(',')).join('\r\n')
+}
+
+// ── Edit-mode helpers ────────────────────────────────────────────────────────
+
+function isNumberedList(value: string): boolean {
+  return /^\d+\.\s/.test(value.trim()) && /\s+\/\s+/.test(value)
+}
+
+// "1. step one / 2. step two" → "step one\nstep two"
+function toEditDisplay(value: string): string {
+  if (!isNumberedList(value)) return value
+  return value
+    .split(/\s+\/\s+/)
+    .map(s => s.replace(/^\d+\.\s*/, '').trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+// "step one\nstep two\nnew step" → "1. step one / 2. step two / 3. new step"
+function fromEditLines(display: string, wasNumbered: boolean): string {
+  const lines = display.split('\n').map(l => l.trim()).filter(Boolean)
+  if (lines.length === 0) return ''
+  if (!wasNumbered && lines.length === 1) return lines[0]
+  return lines.map((l, i) => `${i + 1}. ${l}`).join(' / ')
 }
 
 function deriveProjectKey(jiraIdsRaw: string): string {
@@ -141,15 +252,22 @@ export default function TestCaseCreator() {
   // Step 2 state
   const [additionalContext, setAdditionalContext] = useState('')
   const [dumpUsed, setDumpUsed] = useState('')
+  const [coverage, setCoverage] = useState('')
   const [screenshots, setScreenshots] = useState<File[]>([])
   const [generateLoading, setGenerateLoading] = useState(false)
   const [generateError, setGenerateError] = useState('')
+  const [progressMsg, setProgressMsg] = useState('')
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Step 3 state
   const [result, setResult] = useState<any>(null)
   const [tables, setTables] = useState<TableSection[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [editingCell, setEditingCell] = useState<{ si: number; ri: number; ci: number } | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [editIsNumbered, setEditIsNumbered] = useState(false)
 
   useEffect(() => {
     Promise.all([getConnections(), getLLMConnections()]).then(([j, l]) => {
@@ -204,25 +322,29 @@ export default function TestCaseCreator() {
 
   // ── Step 2: Generate ─────────────────────────────────────────────────────
 
+  const PROGRESS_MSGS = [
+    'Analyzing Jira tickets...',
+    'Planning test scenarios...',
+    'Writing test cases...',
+    'Formatting output...',
+    'Almost done...',
+  ]
+
   async function handleGenerate() {
     if (!form.llmConnectionName) { setGenerateError('Select an LLM connection.'); return }
     if (!dumpUsed.trim()) { setGenerateError('Dump Used is required.'); return }
     setGenerateLoading(true)
     setGenerateError('')
+    setProgressMsg(PROGRESS_MSGS[0])
+    let msgIdx = 0
+    progressTimer.current = setInterval(() => {
+      msgIdx = (msgIdx + 1) % PROGRESS_MSGS.length
+      setProgressMsg(PROGRESS_MSGS[msgIdx])
+    }, 4000)
     try {
-      const images = await Promise.all(
-        screenshots.map(file => new Promise<{ data: string; media_type: string }>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => {
-            const dataUrl = reader.result as string
-            const [header, data] = dataUrl.split(',')
-            const media_type = header.match(/:(.*?);/)?.[1] || 'image/png'
-            resolve({ data, media_type })
-          }
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        }))
-      )
+      const images = screenshots.length > 0
+        ? await Promise.all(screenshots.map(compressImage))
+        : []
 
       const res = await generateTestCases({
         llm_connection_name: form.llmConnectionName,
@@ -236,15 +358,28 @@ export default function TestCaseCreator() {
       setResult(res.data)
 
       const parsed = parseMarkdownTables(res.data.test_cases || '')
-      setTables(parsed)
+      const enriched = parsed.map(sec => ({
+        ...sec,
+        headers: [...sec.headers, 'Coverage (Issues)'],
+        rows: sec.rows.map(row => [...row, coverage]),
+      }))
+      setTables(enriched)
       const allKeys = new Set<string>()
-      parsed.forEach((sec, si) => sec.rows.forEach((_, ri) => allKeys.add(`${si}-${ri}`)))
+      enriched.forEach((sec, si) => sec.rows.forEach((_, ri) => allKeys.add(`${si}-${ri}`)))
       setSelected(allKeys)
 
       setStep(3)
     } catch (e: any) {
-      setGenerateError(e.response?.data?.detail || 'Generation failed. Try again.')
-    } finally { setGenerateLoading(false) }
+      const detail = e.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail
+        : Array.isArray(detail) ? detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ')
+        : e.message || 'Generation failed. Check backend logs and try again.'
+      setGenerateError(msg)
+    } finally {
+      if (progressTimer.current) clearInterval(progressTimer.current)
+      setGenerateLoading(false)
+      setProgressMsg('')
+    }
   }
 
   function handleScreenshotAdd(e: React.ChangeEvent<HTMLInputElement>) {
@@ -255,6 +390,18 @@ export default function TestCaseCreator() {
 
   function handleScreenshotRemove(index: number) {
     setScreenshots(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const imageItems = Array.from(e.clipboardData?.items || []).filter(item => item.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    imageItems.forEach(item => {
+      const blob = item.getAsFile()
+      if (!blob) return
+      const file = new File([blob], `pasted-${Date.now()}.png`, { type: blob.type || 'image/png' })
+      setScreenshots(prev => [...prev, file])
+    })
   }
 
   // ── Step 3: Selection helpers ─────────────────────────────────────────────
@@ -325,6 +472,31 @@ export default function TestCaseCreator() {
     )
   }
 
+  function handleCellEdit(si: number, ri: number, ci: number, value: string) {
+    setTables(prev => prev.map((sec, s) => s !== si ? sec : {
+      ...sec,
+      rows: sec.rows.map((row, r) => r !== ri ? row : row.map((cell, c) => c !== ci ? cell : value)),
+    }))
+  }
+
+  function startEditing(si: number, ri: number, ci: number, e: React.MouseEvent) {
+    e.stopPropagation()
+    const currentValue = tables[si].rows[ri][ci]
+    const numbered = isNumberedList(currentValue)
+    setEditIsNumbered(numbered)
+    setEditValue(toEditDisplay(currentValue))
+    setEditingCell({ si, ri, ci })
+  }
+
+  function commitEdit() {
+    if (!editingCell) return
+    const { si, ri, ci } = editingCell
+    handleCellEdit(si, ri, ci, fromEditLines(editValue, editIsNumbered))
+    setEditingCell(null)
+    setEditValue('')
+    setEditIsNumbered(false)
+  }
+
   function handleRestart() {
     setStep(1)
     setIssues([])
@@ -333,9 +505,14 @@ export default function TestCaseCreator() {
     setSelected(new Set())
     setAdditionalContext('')
     setDumpUsed('')
+    setCoverage('')
     setScreenshots([])
     setFetchError('')
     setGenerateError('')
+    setEditMode(false)
+    setEditingCell(null)
+    setEditValue('')
+    setEditIsNumbered(false)
   }
 
   const totalRows = tables.reduce((acc, sec) => acc + sec.rows.length, 0)
@@ -471,6 +648,12 @@ export default function TestCaseCreator() {
               ))}
             </div>
 
+            {/* Coverage — optional */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Coverage (Issues)</label>
+              <input value={coverage} onChange={e => setCoverage(e.target.value)} />
+            </div>
+
             {/* Dump Used — mandatory */}
             <div className="form-group" style={{ marginBottom: 16 }}>
               <label>Dump Used<span>*</span></label>
@@ -492,29 +675,32 @@ export default function TestCaseCreator() {
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: '0.8rem' }}>Testing Notes / Focus Areas</label>
                 <textarea
-                  placeholder="e.g., Focus on edge cases for the export flow. Test with large datasets (10k+ rows). Verify PowerPoint format compatibility. Check with expired sessions."
                   value={additionalContext}
                   onChange={e => setAdditionalContext(e.target.value)}
+                  onPaste={handlePaste}
                   style={{ minHeight: 100 }}
                 />
                 <span className="hint">Describe testing goals, known issues, scope constraints, or specific scenarios to cover.</span>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
+              <div className="form-group" style={{ marginBottom: 0 }} onPaste={handlePaste}>
                 <label style={{ fontSize: '0.8rem' }}>Screenshots / Attachments</label>
                 <span className="hint" style={{ display: 'block', marginBottom: 8 }}>
                   Attach screenshots of the UI, designs, or error states. Vision-capable models (e.g. Claude) will analyze them to generate richer test cases.
                 </span>
 
-                <label style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-                  padding: '7px 14px', borderRadius: 6, border: '1px dashed var(--border)',
-                  fontSize: '0.82rem', color: 'var(--text-muted)', background: 'var(--bg-card)',
-                  transition: 'border-color 0.2s',
-                }}>
-                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleScreenshotAdd} />
-                  + Add Screenshots
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <label style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                    padding: '7px 14px', borderRadius: 6, border: '1px dashed var(--border)',
+                    fontSize: '0.82rem', color: 'var(--text-muted)', background: 'var(--bg-card)',
+                    transition: 'border-color 0.2s',
+                  }}>
+                    <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleScreenshotAdd} />
+                    + Add Screenshots
+                  </label>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>or paste an image (Ctrl+V)</span>
+                </div>
 
                 {screenshots.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
@@ -547,7 +733,7 @@ export default function TestCaseCreator() {
 
             <button className="btn-primary full-width" onClick={handleGenerate} disabled={generateLoading || !dumpUsed.trim()}>
               {generateLoading
-                ? <><span className="spinner" /> Generating Test Cases...</>
+                ? <><span className="spinner" /> {progressMsg}</>
                 : `✦ Generate Test Cases for ${issues.length} issue${issues.length !== 1 ? 's' : ''}${screenshots.length > 0 ? ` + ${screenshots.length} screenshot${screenshots.length !== 1 ? 's' : ''}` : ''}`}
             </button>
           </div>
@@ -581,6 +767,13 @@ export default function TestCaseCreator() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn-outline"
+                onClick={() => { setEditMode(e => !e); setEditingCell(null) }}
+                style={editMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+              >
+                {editMode ? '✓ Done Editing' : '✎ Edit'}
+              </button>
               <button className="btn-outline" onClick={handleDownloadMd} disabled={downloading}>
                 {downloading ? 'Downloading...' : '⬇ Download .md'}
               </button>
@@ -650,8 +843,9 @@ export default function TestCaseCreator() {
                           const key = `${si}-${ri}`
                           const isChecked = selected.has(key)
                           return (
-                            <tr key={ri} style={{ background: isChecked ? 'var(--bg-stepper)' : undefined }}
-                              onClick={() => toggleRow(key)}>
+                            <tr key={ri}
+                              style={{ background: isChecked ? 'var(--bg-stepper)' : undefined }}
+                              onClick={() => !editMode && toggleRow(key)}>
                               <td style={{ textAlign: 'center', cursor: 'pointer' }} onClick={e => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
@@ -660,9 +854,37 @@ export default function TestCaseCreator() {
                                   style={{ width: 15, height: 15, cursor: 'pointer' }}
                                 />
                               </td>
-                              {row.map((cell, ci) => (
-                                <td key={ci}>{cell}</td>
-                              ))}
+                              {row.map((cell, ci) => {
+                                const isActive = editMode && editingCell?.si === si && editingCell?.ri === ri && editingCell?.ci === ci
+                                return (
+                                  <td key={ci}
+                                    style={{ cursor: editMode ? 'text' : undefined, verticalAlign: 'top' }}
+                                    onClick={editMode ? e => startEditing(si, ri, ci, e) : undefined}>
+                                    {isActive ? (
+                                      <textarea
+                                        autoFocus
+                                        value={editValue}
+                                        ref={el => {
+                                          if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' }
+                                        }}
+                                        onChange={e => {
+                                          setEditValue(e.target.value)
+                                          e.target.style.height = 'auto'
+                                          e.target.style.height = e.target.scrollHeight + 'px'
+                                        }}
+                                        onBlur={commitEdit}
+                                        onClick={e => e.stopPropagation()}
+                                        style={{
+                                          width: '100%', border: 'none', background: 'transparent',
+                                          fontSize: 'inherit', fontFamily: 'inherit', padding: 0, outline: 'none',
+                                          color: 'var(--text)', resize: 'none', overflow: 'hidden',
+                                          lineHeight: 1.5, display: 'block',
+                                        }}
+                                      />
+                                    ) : cell}
+                                  </td>
+                                )
+                              })}
                             </tr>
                           )
                         })}

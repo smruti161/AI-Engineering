@@ -399,12 +399,12 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: var(--connected-bg);
-  border: 1px solid var(--connected-border);
+  background: var(--connection-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 16px;
   font-size: 0.875rem;
-  color: var(--connected-text);
+  color: var(--text);
 }
 
 /* Loading spinner */

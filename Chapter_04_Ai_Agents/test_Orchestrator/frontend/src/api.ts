@@ -35,7 +35,7 @@ export const testLLMConnection = (data: {
 
 export const deleteLLMConnection = (name: string) => API.delete(`/llm-connections/${encodeURIComponent(name)}`)
 
-export const getFalconModels = (data: { api_key: string; base_url?: string }) =>
+export const getFalconModels = (data: { api_key?: string; base_url?: string; connection_name?: string }) =>
   API.post('/llm-connections/falcon-models', data)
 
 // ── Issues ───────────────────────────────────────────────────────────────────

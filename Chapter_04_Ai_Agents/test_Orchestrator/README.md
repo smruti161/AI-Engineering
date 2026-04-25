@@ -6,7 +6,9 @@ An AI-powered QA automation tool that fetches Jira requirements and generates pr
 
 ## Overview
 
-Test Orchestrator is a full-stack web application with a React/TypeScript frontend and a Python FastAPI backend. It connects to Jira, pulls issue details, and uses an LLM (Claude, Groq, Grok, Ollama, or Falcon) to generate structured test plans and detailed test cases — ready for import into Zephyr Scale.
+Test Orchestrator is a full-stack web application with a React/TypeScript frontend and a Python FastAPI backend. It connects to Jira, pulls issue details, and uses an LLM (Falcon AI, Claude, Groq, Grok, or Ollama) to generate structured test plans and detailed test cases — ready for import into Zephyr Scale.
+
+All generations are governed by **anti-hallucination rules** — the LLM only uses information explicitly provided in the Jira ticket. No invented behavior, no assumed defaults.
 
 ---
 
@@ -18,14 +20,14 @@ Layer 1: React Frontend (Port 5173)
 Layer 2: FastAPI Backend (Port 8000)
          ↓  Python function calls
 Layer 3: Tools (Business Logic)
-         ├─ jira_client.py       — Jira REST API v3
-         ├─ llm_client.py        — Multi-provider LLM abstraction
+         ├─ jira_client.py           — Jira REST API v3
+         ├─ llm_client.py            — Multi-provider LLM abstraction
          ├─ test_plan_generator.py
          ├─ test_case_generator.py
          ├─ pdf_exporter.py
          └─ doc_exporter.py
          ↓
-Persistent Storage: .tmp/
+Runtime Data: .tmp/
          ├─ history.json
          ├─ jira_connections.json
          ├─ llm_connections.json
@@ -52,12 +54,15 @@ Persistent Storage: .tmp/
 - Output rendered as interactive markdown tables
 - Per-row checkboxes with select-all for choosing which test cases to export
 - Export selected test cases as **Zephyr Scale CSV** (one row per step, ready to import)
+  - Steps, Test Data, and Expected Results are each split per step row
 - Export full output as `.md`
 - File names include the Jira ticket numbers (e.g., `test_cases_SCI-123_SCI-124.csv`)
+- Selected LLM and Jira connection are remembered across page navigation
 
 ### Connections Manager
 - Save, test, and delete Jira connections (URL + email + API token)
 - Save, test, and delete LLM connections (provider + model + API key)
+- Falcon AI: dynamic **Load Models** button fetches available models from the gateway
 - Connections persist across sessions in `.tmp/` JSON files
 
 ### History
@@ -71,53 +76,64 @@ Persistent Storage: .tmp/
 
 | Provider | Notes |
 |----------|-------|
-| **Claude** (Anthropic) | Recommended. Supports image/screenshot input. Uses prompt caching for efficiency. `max_tokens: 16000` |
+| ⭐ **Falcon AI (Planview)** | **Recommended.** Planview's internal LLM gateway at `https://falconai.planview-prod.io/api`. OpenAI-compatible API. Dynamic model loading via Load Models button. `max_tokens: 4096` |
+| **Claude** (Anthropic) | Supports image/screenshot input. Uses prompt caching for efficiency. `max_tokens: 16000` |
 | **Groq** | Fast inference via Groq SDK |
 | **Grok** | xAI API (raw HTTP) |
 | **Ollama** | Local models via Ollama server |
-| **Falcon** | Falcon AI API (raw HTTP) |
 
 Default models are pre-configured per provider and can be overridden when saving a connection.
+
+---
+
+## Anti-Hallucination Rules
+
+Every generation (test plan and test cases) is prefixed with strict verification rules from `anti_haluination_rules/anti_hallucination.md`:
+
+- The LLM may **only** use information explicitly present in the Jira ticket (description, acceptance criteria, comments, subtasks, screenshots)
+- It must **never** invent features, APIs, UI elements, or behaviors
+- Missing information is flagged as `Not Specified` — never assumed
+- All assertions must be traceable to the provided input
 
 ---
 
 ## Project Structure
 
 ```
-test_Orchestrator/
-├── backend/
-│   └── main.py                  # FastAPI app, all routes and Pydantic models
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── FetchIssues.tsx      # Step 1: Fetch issues from Jira
-│   │   │   ├── Review.tsx           # Step 2: Review issues + context + screenshots
-│   │   │   ├── TestPlan.tsx         # Step 3: Display & export test plan
-│   │   │   ├── TestCaseCreator.tsx  # Full test case wizard (3 steps)
-│   │   │   ├── History.tsx          # Past generation history
-│   │   │   └── ConnectionsPage.tsx  # Manage Jira & LLM connections
-│   │   ├── App.tsx                  # Main shell, routing, theme toggle
-│   │   ├── api.ts                   # All Axios API calls
-│   │   └── App.css                  # Global styles
-│   ├── package.json
-│   └── vite.config.ts               # Dev server + proxy to port 8000
-├── tools/
-│   ├── jira_client.py           # Jira REST API v3 client
-│   ├── llm_client.py            # Multi-provider LLM abstraction
-│   ├── test_plan_generator.py   # Test plan generation pipeline
-│   ├── test_case_generator.py   # Test case generation pipeline
-│   ├── pdf_exporter.py          # Markdown → .md / PDF export
-│   └── doc_exporter.py          # Markdown → .docx export
+Chapter_04_Ai_Agents/
+├── anti_haluination_rules/
+│   └── anti_hallucination.md        # Loaded at runtime — governs all LLM generations
+├── test_case_templates/
+│   └── test_case_format.md          # Loaded at runtime — defines test case output format
 ├── test_plan_templates/
-│   └── test_plan.md             # System prompt template for test plans
-├── .tmp/                        # Runtime data (auto-created, gitignore this)
-├── requirements.txt
-├── start.bat                    # One-click Windows startup
-└── .env.template                # Environment variable reference
+│   └── test_plan.md                 # Loaded at runtime — defines test plan structure
+└── test_Orchestrator/
+    ├── backend/
+    │   └── main.py                  # FastAPI app, all routes and Pydantic models
+    ├── frontend/
+    │   ├── src/
+    │   │   ├── components/
+    │   │   │   ├── TestCaseCreator.tsx   # Full test case wizard (3 steps)
+    │   │   │   ├── ConnectionsPage.tsx   # Manage Jira & LLM connections
+    │   │   │   ├── History.tsx           # Past generation history
+    │   │   │   └── Setup.tsx             # LLM setup page
+    │   │   ├── App.tsx                   # Main shell, routing, theme toggle
+    │   │   ├── api.ts                    # All Axios API calls
+    │   │   └── App.css                   # Global styles
+    │   ├── package.json
+    │   └── vite.config.ts               # Dev server + proxy to port 8000 (timeout: 5 min)
+    ├── tools/
+    │   ├── jira_client.py           # Jira REST API v3 client
+    │   ├── llm_client.py            # Multi-provider LLM abstraction + anti-hallucination loader
+    │   ├── test_plan_generator.py   # Test plan generation pipeline
+    │   ├── test_case_generator.py   # Test case generation pipeline + anti-hallucination loader
+    │   ├── pdf_exporter.py          # Markdown → .md export
+    │   └── doc_exporter.py          # Markdown → .docx export
+    ├── .tmp/                        # Runtime data (auto-created)
+    ├── requirements.txt
+    ├── start.bat                    # One-click Windows startup
+    └── .env.template                # Environment variable reference
 ```
-
-> The test case template lives one level up:
-> `Chapter_04_Ai_Agents/test_case_templates/test_case_format.md`
 
 ---
 
@@ -128,7 +144,7 @@ test_Orchestrator/
 - Python 3.10+
 - Node.js 18+
 - A Jira account with API token ([generate here](https://id.atlassian.com/manage-profile/security/api-tokens))
-- At least one LLM provider API key
+- Planview Falcon AI API key (or any other supported LLM provider key)
 
 ### 1. Clone & install backend dependencies
 
@@ -144,22 +160,7 @@ cd frontend
 npm install
 ```
 
-### 3. Configure environment (optional)
-
-Copy `.env.template` to `.env` and fill in your keys:
-
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-GROQ_API_KEY=gsk_...
-GROK_API_KEY=...
-OLLAMA_BASE_URL=http://localhost:11434
-APP_HOST=localhost
-APP_PORT=8000
-```
-
-API keys can also be entered directly in the UI when saving an LLM connection.
-
-### 4. Start the application
+### 3. Start the application
 
 **Option A — Windows one-click:**
 ```
@@ -187,8 +188,12 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 1. Click **Connections** in the sidebar
 2. Add a **Jira connection** (URL, email, API token) and click **Test Connection**
-3. Add an **LLM connection** (select provider, enter API key and model) and click **Test**
-4. Save both connections
+3. Add an **LLM connection**:
+   - Select provider **Falcon AI (Planview)**
+   - Enter your Planview API key
+   - Click **Load Models** to fetch available models
+   - Select a model and click **Test Connection**
+4. Save both connections — they will be remembered for future sessions
 
 ### Generate a Test Plan
 
@@ -200,7 +205,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ### Generate Test Cases
 
 1. Go to **Test Case Creator**
-2. **Step 1 — Fetch Issues:** Same as above; also enter the mandatory **Dump Used** field (e.g., the build or DB snapshot used)
+2. **Step 1 — Fetch Issues:** Select connections and enter Jira IDs; enter the mandatory **Dump Used** field (e.g., the DB snapshot or build used)
 3. **Step 2 — Review:** Review issues, add context or screenshots
 4. **Step 3 — Generate:** View tables, select rows with checkboxes, export as **Zephyr Scale CSV** or `.md`
 
@@ -208,6 +213,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 The exported CSV is formatted for direct Zephyr Scale import:
 - One row per test step
+- Steps, Test Data, and Expected Results are each split into individual rows (aligned per step)
 - Columns match Zephyr Scale field names exactly
 - Test Case ID is only populated on the first step row per test case
 
@@ -232,6 +238,7 @@ The exported CSV is formatted for direct Zephyr Scale import:
 | POST | `/api/llm-connections` | Save a new LLM connection |
 | POST | `/api/llm-connections/test` | Test an LLM connection |
 | DELETE | `/api/llm-connections/{name}` | Delete an LLM connection |
+| POST | `/api/llm-connections/falcon-models` | Fetch available models from Falcon AI gateway |
 
 ### Issues
 
@@ -277,8 +284,8 @@ Test cases are generated as Zephyr Scale-compatible markdown tables with the fol
 | Objective | Brief test goal — does NOT start with "Verify" |
 | Precondition | System/data state required before execution |
 | Test Script (Step-by-Step) - Step | Numbered steps separated by ` / ` |
-| Test Script (Step-by-Step) - Test Data | Input values or data sets |
-| Test Script (Step-by-Step) - Expected Result | Verifiable outcome |
+| Test Script (Step-by-Step) - Test Data | Input values per step, separated by ` / ` |
+| Test Script (Step-by-Step) - Expected Result | Verifiable outcome per step, separated by ` / ` |
 | Test Type | `Positive` / `Negative` / `Edge Case` / `Boundary` |
 | Priority | `High` / `Medium` / `Low` |
 | Dump Used | DB dump / build reference entered by tester |
@@ -311,6 +318,11 @@ Covers 20 testing areas: Functional, Data Validation, Error Handling, Performanc
 
 Defines the Senior QA Engineer role, Zephyr Scale output format, field definitions, constraints (positive + negative + edge cases, no duplication, only Jira sources), and a pre-generation checklist.
 
+### Anti-Hallucination Rules
+**Location:** `../anti_haluination_rules/anti_hallucination.md`
+
+Enforces strict source-only reasoning. Prepended to every system prompt for both test plan and test case generation.
+
 ---
 
 ## Notes
@@ -319,3 +331,5 @@ Defines the Senior QA Engineer role, Zephyr Scale output format, field definitio
 - When a history record is deleted, the associated `.md` and `.docx` files are also permanently removed.
 - Claude is the only provider that supports screenshot/image input for vision-based test case generation.
 - Project key is auto-derived from Jira IDs — no manual entry required (e.g., `SCI-123` → project key `SCI`).
+- The Vite dev proxy has a 5-minute timeout to accommodate long Falcon AI generation calls.
+- Your last selected LLM and Jira connection are saved in `localStorage` and restored automatically on next visit.

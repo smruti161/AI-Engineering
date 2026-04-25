@@ -62,6 +62,27 @@ export default function Review({ fetchState, setFetchState, onGenerated, onBack 
     setScreenshots(prev => prev.filter((_, i) => i !== idx))
   }
 
+  function handlePaste(e: React.ClipboardEvent) {
+    const imageItems = Array.from(e.clipboardData?.items || []).filter(item => item.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    imageItems.forEach(item => {
+      const blob = item.getAsFile()
+      if (!blob) return
+      const reader = new FileReader()
+      reader.onload = ev => {
+        const result = ev.target?.result as string
+        setScreenshots(prev => [...prev, {
+          name: `pasted-${Date.now()}.png`,
+          data: result.split(',')[1],
+          media_type: blob.type || 'image/png',
+          preview: result,
+        }])
+      }
+      reader.readAsDataURL(blob)
+    })
+  }
+
   async function handleGenerate() {
     setGenerating(true)
     setError('')
@@ -86,8 +107,16 @@ export default function Review({ fetchState, setFetchState, onGenerated, onBack 
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <h2>Review Jira Issues ({issues.length})</h2>
-            <p style={{ marginBottom: 0 }}>Issues that will be used to generate the test plan</p>
+            {(() => {
+              const types = [...new Set(issues.map(i => i.issue_type).filter(Boolean))]
+              const label = types.length === 1 ? `${types[0]}s` : 'Items'
+              return (
+                <>
+                  <h2>Review Jira {label} ({issues.length})</h2>
+                  <p style={{ marginBottom: 0 }}>{label} that will be used to generate the test plan</p>
+                </>
+              )
+            })()}
           </div>
           <span className="badge badge-info">{projectKey}</span>
         </div>
@@ -138,32 +167,36 @@ export default function Review({ fetchState, setFetchState, onGenerated, onBack 
         <p>Add context or screenshots to improve test plan quality</p>
 
         <div className="form-group">
-          <label>Testing Notes / Focus Areas</label>
+          <label>Focus Areas</label>
           <textarea
-            placeholder="Any additional information about the product, testing goals, constraints, or specific areas of focus..."
             value={additionalContext}
             onChange={e => setAdditionalContext(e.target.value)}
+            onPaste={handlePaste}
             style={{ minHeight: 120 }}
           />
         </div>
 
-        <div className="form-group" style={{ marginTop: 16 }}>
+        <div className="form-group" style={{ marginTop: 16 }} onPaste={handlePaste}>
           <label>Screenshots / Attachments</label>
           <div
             style={{
               border: '2px dashed var(--border)',
               borderRadius: 8,
-              padding: '20px',
+              padding: '10px 16px',
               textAlign: 'center',
               cursor: 'pointer',
               background: 'var(--connection-bg)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
             }}
             onClick={() => fileInputRef.current?.click()}
           >
-            <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📎</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              Click to upload screenshots (PNG, JPG, GIF, WebP)
-            </div>
+            <span style={{ fontSize: '1.1rem' }}>📎</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              Click to upload screenshots (PNG, JPG, GIF, WebP) &nbsp;·&nbsp; or paste (Ctrl+V)
+            </span>
             <input
               ref={fileInputRef}
               type="file"

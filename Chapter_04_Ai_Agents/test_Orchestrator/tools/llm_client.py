@@ -182,12 +182,16 @@ def _generate_claude(
     user_content: list[dict] = [{"type": "text", "text": user_message}]
     if images:
         for img in images:
+            data = img.get("data")
+            media_type = img.get("media_type")
+            if not data or not isinstance(data, str) or not media_type:
+                continue
             user_content.append({
                 "type": "image",
                 "source": {
                     "type": "base64",
-                    "media_type": img["media_type"],
-                    "data": img["data"],
+                    "media_type": media_type,
+                    "data": data,
                 },
             })
 
@@ -339,23 +343,56 @@ def _test_falcon(conn: LLMConnection) -> dict:
 def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str) -> dict:
     import requests as req
     base = (conn.base_url or "https://falconai.planview-prod.io/api").rstrip("/")
-    resp = req.post(
-        f"{base}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {conn.api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": conn.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            "max_tokens": 4096,
-            "temperature": 0.3,
-        },
-        timeout=90,
-    )
-    if resp.status_code == 200:
-        return {"success": True, "test_plan": resp.json()["choices"][0]["message"]["content"]}
-    return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+    headers = {
+        "Authorization": f"Bearer {conn.api_key}",
+        "Content-Type": "application/json",
+    }
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    # Some Falcon models run a RAG/search loop before generating text.
+    # We handle up to 5 tool-call rounds by returning empty results so the
+    # model falls back to the information already in the conversation.
+    for _ in range(6):
+        resp = req.post(
+            f"{base}/chat/completions",
+            headers=headers,
+            json={
+                "model": conn.model,
+                "messages": messages,
+                "max_tokens": 8000,
+                "temperature": 0.3,
+            },
+            timeout=90,
+        )
+        if resp.status_code != 200:
+            return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+
+        data = resp.json()
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        content = message.get("content")
+        finish_reason = choice.get("finish_reason", "unknown")
+
+        if finish_reason != "tool_calls":
+            break
+
+        # Respond to every tool call with an empty result and continue the loop
+        tool_calls = message.get("tool_calls", [])
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": tool_calls,
+        })
+        for tc in tool_calls:
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.get("id", ""),
+                "content": "No additional information found. Use only the Jira ticket details provided.",
+            })
+
+    if not content:
+        return {"success": False, "error": f"Falcon returned empty content (finish_reason: {finish_reason}). Try a different model."}
+    return {"success": True, "test_plan": content}

@@ -18,11 +18,6 @@ const PROVIDERS = [
   { value: 'falcon', label: 'Falcon AI (Planview)',  modelPlaceholder: 'claude-sonnet-4-20250514' },
 ]
 
-const FALCON_MODELS = [
-  'claude-sonnet-4-20250514',
-  'claude-opus-4-20250514',
-  'claude-haiku-4-5-20251001',
-]
 
 interface Props { onConnectionsReady?: () => void }
 
@@ -46,7 +41,7 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
   const [llmTesting, setLlmTesting]       = useState(false)
   const [llmTestResult, setLlmTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [llmSaving, setLlmSaving]         = useState(false)
-  const [falconModels, setFalconModels]   = useState<string[]>(FALCON_MODELS)
+  const [falconModels, setFalconModels]   = useState<string[]>([])
   const [falconLoading, setFalconLoading] = useState(false)
 
   useEffect(() => { loadAll() }, [])
@@ -128,13 +123,17 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
   function startEditLLM(c: any) {
     setLlmForm({ name: c.name, provider: c.provider, model: c.model, api_key: '', base_url: c.base_url || '' })
     setEditingLLM(c); setShowLlmForm(true); setExpandedLLM(null); setLlmTestResult(null)
+    setFalconModels([])
   }
 
   async function handleLoadFalconModels() {
-    if (!llmForm.api_key) return
     setFalconLoading(true)
     try {
-      const res = await getFalconModels({ api_key: llmForm.api_key, base_url: llmForm.base_url || undefined })
+      const res = await getFalconModels({
+        api_key: llmForm.api_key || undefined,
+        base_url: llmForm.base_url || undefined,
+        connection_name: editingLLM?.name || undefined,
+      })
       if (res.data.success && res.data.models.length > 0) {
         setFalconModels(res.data.models)
         setLlmForm(f => ({ ...f, model: res.data.models[0] }))
@@ -312,7 +311,7 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
         ))}
 
         {!showLlmForm ? (
-          <button className="btn-outline" style={{ marginTop: 8 }} onClick={() => { setShowLlmForm(true); setEditingLLM(null) }}>
+          <button className="btn-outline" style={{ marginTop: 8 }} onClick={() => { setShowLlmForm(true); setEditingLLM(null); setFalconModels([]) }}>
             + Add LLM Connection
           </button>
         ) : (
@@ -333,7 +332,8 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
                 <select value={llmForm.provider}
                   onChange={e => {
                     const p = e.target.value
-                    setLlmForm({ ...llmForm, provider: p, model: p === 'falcon' ? FALCON_MODELS[0] : '' })
+                    setFalconModels([])
+                    setLlmForm({ ...llmForm, provider: p, model: '' })
                   }}>
                   {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
@@ -344,14 +344,28 @@ export default function ConnectionsPage({ onConnectionsReady }: Props = {}) {
                 <label>Model<span>*</span></label>
                 {llmForm.provider === 'falcon' ? (
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <select style={{ flex: 1 }} value={llmForm.model}
-                      onChange={e => setLlmForm({ ...llmForm, model: e.target.value })}>
-                      {falconModels.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
+                    {falconModels.length > 0 ? (
+                      <select style={{ flex: 1 }} value={llmForm.model}
+                        onChange={e => setLlmForm({ ...llmForm, model: e.target.value })}>
+                        {llmForm.model && !falconModels.includes(llmForm.model) && (
+                          <option value={llmForm.model}>{llmForm.model}</option>
+                        )}
+                        {falconModels.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        style={{ flex: 1 }}
+                        value={llmForm.model}
+                        readOnly={!!editingLLM}
+                        placeholder="Click 'Load Models' to fetch available models"
+                        onChange={e => setLlmForm({ ...llmForm, model: e.target.value })}
+                      />
+                    )}
                     <button type="button" className="btn-outline" style={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}
                       onClick={handleLoadFalconModels}
-                      disabled={!llmForm.api_key || falconLoading}>
-                      {falconLoading ? '...' : 'Load Models'}
+                      disabled={(!llmForm.api_key && !editingLLM) || falconLoading}
+                      title={(!llmForm.api_key && !editingLLM) ? 'Enter your API key first' : 'Fetch available models from Falcon'}>
+                      {falconLoading ? <><span className="spinner spinner-blue" /> Loading...</> : '↻ Load Models'}
                     </button>
                   </div>
                 ) : (

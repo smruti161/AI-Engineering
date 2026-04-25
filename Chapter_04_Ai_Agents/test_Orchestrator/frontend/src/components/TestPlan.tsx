@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { exportMarkdown, exportDoc } from '../api'
+import { exportDoc } from '../api'
 import './TestPlan.css'
 
 interface Props {
   result: any
+  coverage?: string
   onBack: () => void
   onRestart: () => void
 }
@@ -18,7 +20,10 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-export default function TestPlan({ result, onBack, onRestart }: Props) {
+export default function TestPlan({ result, coverage, onBack, onRestart }: Props) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState<string | null>(null)
+
   if (!result) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '60px 24px' }}>
@@ -31,12 +36,12 @@ export default function TestPlan({ result, onBack, onRestart }: Props) {
   }
 
   const { metadata, test_plan_markdown } = result
+  const content = editContent ?? test_plan_markdown
   const dateStr = new Date().toISOString().slice(0, 10)
   const baseName = `test_plan_${metadata.jira_project}_${dateStr}`
 
-  async function handleDownloadMd() {
-    const res = await exportMarkdown()
-    downloadBlob(new Blob([res.data], { type: 'text/markdown' }), `${baseName}.md`)
+  function handleDownloadMd() {
+    downloadBlob(new Blob([content], { type: 'text/markdown' }), `${baseName}.md`)
   }
 
   async function handleDownloadDoc() {
@@ -45,6 +50,11 @@ export default function TestPlan({ result, onBack, onRestart }: Props) {
       new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
       `${baseName}.docx`
     )
+  }
+
+  function toggleEdit() {
+    if (!isEditing) setEditContent(content)
+    setIsEditing(e => !e)
   }
 
   return (
@@ -59,8 +69,20 @@ export default function TestPlan({ result, onBack, onRestart }: Props) {
               &nbsp;·&nbsp;{metadata.issues_count} issue{metadata.issues_count !== 1 ? 's' : ''}
               &nbsp;·&nbsp;{new Date(metadata.generated_at).toLocaleString()}
             </span>
+            {coverage && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Coverage: <strong style={{ color: 'var(--text)' }}>{coverage}</strong>
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className="btn-outline"
+              onClick={toggleEdit}
+              style={isEditing ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+            >
+              {isEditing ? '✓ Done Editing' : '✎ Edit'}
+            </button>
             <button className="btn-outline" onClick={handleDownloadMd}>⬇ Download .md</button>
             <button className="btn-outline" onClick={handleDownloadDoc}>⬇ Download .docx</button>
             <button className="btn-secondary" onClick={onRestart}>Start Over</button>
@@ -84,9 +106,25 @@ export default function TestPlan({ result, onBack, onRestart }: Props) {
         )}
       </div>
 
-      <div className="card test-plan-body">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{test_plan_markdown}</ReactMarkdown>
-      </div>
+      {isEditing ? (
+        <div className="card" style={{ padding: '16px 20px' }}>
+          <textarea
+            value={content}
+            onChange={e => setEditContent(e.target.value)}
+            style={{
+              width: '100%', minHeight: 500, fontFamily: 'monospace',
+              fontSize: '0.85rem', lineHeight: 1.6, resize: 'vertical',
+              background: 'var(--connection-bg)', color: 'var(--text)',
+              border: '1px solid var(--border)', borderRadius: 6, padding: 12,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      ) : (
+        <div className="card test-plan-body">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        </div>
+      )}
 
       <div className="nav-buttons">
         <button className="btn-secondary" onClick={onBack}>← Back to Review</button>

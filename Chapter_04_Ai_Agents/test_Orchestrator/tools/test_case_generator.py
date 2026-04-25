@@ -13,8 +13,8 @@ import tools.llm_client as lc
 from tools.pdf_exporter import export_to_markdown
 from tools.doc_exporter import export_to_doc
 
-TEMPLATE_PATH = Path(__file__).parent.parent.parent / "test_case_templates" / "test_case_format.md"
-ANTI_HALLUCINATION_PATH = Path(__file__).parent.parent.parent / "anti_haluination_rules" / "anti_hallucination.md"
+TEMPLATE_PATH = Path(__file__).parent.parent / "test_plan_templates" / "test_cases_template.md"
+ANTI_HALLUCINATION_PATH = Path(__file__).parent.parent / "anti_haluination_rules" / "anti_hallucination.md"
 
 def _get_template() -> str:
     if not TEMPLATE_PATH.exists():
@@ -50,43 +50,97 @@ def run(
         "error": "..." (only on failure)
     }
     """
+    try:
+        return _run(llm_conn, issues, product_name, project_key, additional_context, dump_used, images)
+    except Exception as e:
+        return {"success": False, "error": f"Unexpected error: {e}"}
+
+
+def _run(
+    llm_conn: LLMConnection,
+    issues: list[dict],
+    product_name: str,
+    project_key: str,
+    additional_context: str = "",
+    dump_used: str = "",
+    images: Optional[list[dict]] = None,
+) -> dict:
     template = _get_template()
     anti_hallucination = _get_anti_hallucination_rules()
     missing_info = check_missing_info(issues)
+
+    if images:
+        images = [img for img in images if img.get("data") and isinstance(img["data"], str)]
+        if not images:
+            images = None
+
+    has_images = bool(images)
+    has_context = bool(additional_context.strip())
 
     ah_prefix = f"{anti_hallucination}\n\n---\n\n" if anti_hallucination else ""
     system_prompt = f"""{ah_prefix}{template}
 
 ---
 
-STRICT RULES:
-1. You MUST follow the exact structure and output format defined in the template above.
-2. Output ONLY a Zephyr Scale-compatible markdown table for each issue. No preamble, no explanation outside the tables.
-3. Format: one table per issue, preceded only by the issue heading (e.g. `## SCI-123: Issue Summary`).
-4. **Test Case ID**: Format `TC_[ISSUE_KEY]_001` (e.g. TC_SCI-123_001). Increment per issue.
-5. **Name**: Must always start with "Verify...". Describes WHAT is being tested — do NOT use labels like "Happy Path", "Negative Case", etc.
-6. **Objective**: Brief statement of the test goal — must NOT start with "Verify".
-7. **Test Script (Step-by-Step) - Step**: Write as `1. action / 2. action / 3. action` — use ` / ` as separator. NOT line breaks or HTML tags.
-8. **COMPLETENESS IS MANDATORY**: You MUST generate EVERY possible test case. Do NOT stop early. Do NOT summarize or skip cases. If content is getting long, shorten individual cell text but NEVER omit a test case row.
-9. **Dump Used**: Add a final column `Dump Used` to every table. Populate every row with the dump value provided in the metadata. If no dump is specified, write `Not Specified`.
-10. Do NOT include `Status` or `Labels / Component` columns — they are not required.
+## INTERNAL REASONING (do NOT output this — think silently before writing)
 
-The output table MUST use these EXACT column names in order:
+Before writing a single table row, mentally complete these steps:
+
+1. For each Jira issue read every sentence of the description and extract:
+   - All stated functional behaviours and business rules
+   - Preconditions, user roles, and data dependencies
+   - Explicit and implied success / failure conditions
+   - Edge cases and boundary values
+
+2. If additional context is provided by the tester, absorb all focus areas, known issues, and scope constraints into your scenario list.
+
+3. If screenshots are attached, examine every pixel of each image:
+   - Every form field, button, dropdown, modal, and table visible on screen
+   - Field labels, required markers, input types, and validation hints
+   - Navigation paths, breadcrumbs, and workflow steps
+   - Error messages, success toasts, and loading states
+   - Any data shown in grids or lists that implies acceptance criteria
+   Screenshots are first-class requirements — a visible UI element must produce at least one test case.
+
+4. Compile one complete ordered list of test scenarios per issue before writing.
+
+## OUTPUT RULES (STRICT — nothing else in the response)
+
+1. Output ONLY Zephyr Scale-compatible markdown tables. No preamble, no analysis, no explanation, no code fences.
+2. One table per issue, preceded by the issue heading only (e.g. `## SCI-123: Issue Summary`).
+3. Every scenario from your internal list MUST become a table row — do NOT skip or summarise.
+4. **Test Case ID**: Format `TC_[ISSUE_KEY]_001`, incrementing per row within each issue.
+5. **Name**: Always starts with "Verify...". States WHAT is tested.
+6. **Objective**: Brief test goal. Must NOT start with "Verify".
+6a. **Precondition**: Use numbered format `1. condition / 2. condition / 3. condition` — space-slash-space separator. Never write preconditions as a single plain sentence.
+7. **Test Script (Step-by-Step) - Step**: `1. action / 2. action / 3. action` — space-slash-space separator, no line breaks.
+8. **Test Script (Step-by-Step) - Test Data**: Same numbered format `1. data / 2. data / 3. data`. Use `N/A` for steps with no data. Entry count MUST equal step count.
+9. **Test Script (Step-by-Step) - Expected Result**: Same numbered format `1. result / 2. result / 3. result`. Entry count MUST equal step count.
+10. **COMPLETENESS IS MANDATORY**: shorten individual cells if needed but NEVER omit a row.
+10a. **NO HTML TAGS**: Never use `<br>`, `<b>`, `<i>`, or any HTML inside table cells. Use plain text only.
+11. **Dump Used**: last column — use the dump value from the request metadata, or `Not Specified`.
+12. Do NOT include `Status` or `Labels / Component` columns.
+
+The table MUST use these EXACT column names in order:
 | Test Case ID | Name | Objective | Precondition | Test Script (Step-by-Step) - Step | Test Script (Step-by-Step) - Test Data | Test Script (Step-by-Step) - Expected Result | Test Type | Priority | Dump Used |
 
-Generate test cases now based on the Jira requirements the user provides."""
+Generate the tables now."""
 
-    lines = [f"# Generate Test Cases\n\n**Product:** {product_name}\n**Project:** {project_key}\n**Dump Used:** {dump_used.strip() or 'Not Specified'}\n"]
+    lines = [f"# Test Case Generation Request\n\n**Product:** {product_name}\n**Project:** {project_key}\n**Dump Used:** {dump_used.strip() or 'Not Specified'}\n"]
     for issue in issues:
         lines.append(f"\n## [{issue['key']}] {issue['summary']}")
         component = (issue.get("component") or "").strip()
         lines.append(f"**Type:** {issue.get('issue_type', 'N/A')} | **Priority:** {issue.get('priority', 'N/A')} | **Component:** {component or 'Not Specified'}")
         desc = (issue.get("description") or "").strip()
         lines.append(f"\n**Description:**\n{desc or '[NEEDS INFO: No description provided]'}")
-    if additional_context.strip():
+    if has_context:
         lines.append(f"\n## Additional Context from Tester\n{additional_context.strip()}")
-    if images:
-        lines.append(f"\n## Screenshots\n{len(images)} screenshot(s) attached — analyze them for UI behavior, field validations, and flows.")
+    if has_images:
+        lines.append(
+            f"\n## Attached Screenshots ({len(images)})\n"
+            "Examine each screenshot carefully — treat every visible element, field, validation rule, "
+            "error state, and flow as a concrete test requirement."
+        )
     user_message = "\n".join(lines)
 
     # Dispatch to the correct provider
@@ -109,12 +163,18 @@ Generate test cases now based on the Jira requirements the user provides."""
     if not result.get("success"):
         return result
 
-    markdown = result["test_plan"]
+    markdown = result.get("test_plan") or ""
+    if not markdown.strip():
+        return {"success": False, "error": "LLM returned an empty response. Try reducing the number of issues or adding more context."}
+
+    # Strip HTML line-break tags the LLM occasionally injects into table cells
+    import re
+    markdown = re.sub(r'\s*<br\s*/?>\s*', ' ', markdown, flags=re.IGNORECASE).strip()
+
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     safe_key = project_key.replace("/", "_").replace(" ", "_")
 
     md_path = export_to_markdown(markdown, safe_key, timestamp)
-    doc_path = export_to_doc(markdown, safe_key, timestamp)
 
     return {
         "success": True,
@@ -122,6 +182,6 @@ Generate test cases now based on the Jira requirements the user provides."""
         "missing_info": missing_info,
         "export_paths": {
             "markdown": str(md_path),
-            "doc": str(doc_path),
+            "doc": str(md_path.with_suffix(".docx")),  # generated on first download
         },
     }
