@@ -100,7 +100,7 @@ def generate_test_plan(
         elif conn.provider == "ollama":
             return _generate_ollama(conn, system_prompt, user_message)
         elif conn.provider == "falcon":
-            return _generate_falcon(conn, system_prompt, user_message)
+            return _generate_falcon(conn, system_prompt, user_message, timeout=120)
         else:
             return {"success": False, "error": f"Unknown provider: {conn.provider}"}
     except Exception as e:
@@ -120,10 +120,19 @@ STRICT RULES:
 1. You MUST follow the exact structure of the test plan template provided below.
 2. Every section heading in the template MUST appear in your output — no exceptions.
 3. Do NOT add sections that are not in the template.
-4. If information needed for a section is not available from the Jira stories, output exactly:
-   [NEEDS INFO: <describe what specific information is missing>]
-5. Fill in all sections with specific, actionable test scenarios derived from the Jira requirements.
-6. For test cases, be concrete: include test scenario name, preconditions, steps, and expected result.
+4. Use [NEEDS INFO: <reason>] ONLY when information is genuinely not present anywhere in the user message. Never use it for data that is clearly provided (issue key, summary, status, type, component).
+5. Fill in all sections with specific, actionable content derived from the Jira requirements.
+
+DELIVERABLES TABLE (Section 2) — STRICT RULES:
+- Output exactly one row per Jira issue provided in the user message — no more, no fewer.
+- Each row must use the actual values from the issue: Issue Type, Key, Summary, Status, Component.
+- If component is not set, write "Not Specified". Do NOT write [NEEDS INFO] for any of these columns.
+
+TEST STRATEGIES (Section 5) — STRICT RULES:
+- Determine the appropriate testing types and number of subsections from the requirements.
+- Do NOT limit to exactly 2 strategies. Add as many numbered subsections (5.1, 5.2, 5.3 …) as the ticket content warrants.
+- Common types to consider based on content: Functional, Integration, UI/UX, Regression, Performance, Security, Accessibility, Negative/Error path.
+- Each subsection must contain specific, concrete bullet points derived from the actual requirements — not generic placeholders.
 
 TEST PLAN TEMPLATE:
 ---
@@ -197,7 +206,7 @@ def _generate_claude(
 
     resp = client.messages.create(
         model=conn.model,
-        max_tokens=16000,
+        max_tokens=8000,
         system=[
             {
                 "type": "text",
@@ -340,7 +349,7 @@ def _test_falcon(conn: LLMConnection) -> dict:
     return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
 
 
-def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str) -> dict:
+def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str, timeout: int = 300) -> dict:
     import requests as req
     base = (conn.base_url or "https://falconai.planview-prod.io/api").rstrip("/")
     headers = {
@@ -353,22 +362,36 @@ def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str)
     ]
 
     # Some Falcon models run a RAG/search loop before generating text.
-    # We handle up to 5 tool-call rounds by returning empty results so the
+    # We handle up to 3 tool-call rounds by returning empty results so the
     # model falls back to the information already in the conversation.
-    for _ in range(6):
-        resp = req.post(
-            f"{base}/chat/completions",
-            headers=headers,
-            json={
-                "model": conn.model,
-                "messages": messages,
-                "max_tokens": 8000,
-                "temperature": 0.3,
-            },
-            timeout=90,
-        )
+    import time as _time
+
+    for _ in range(3):
+        # Retry up to 2 times on 504 (gateway timeout — transient server overload)
+        resp = None
+        for attempt in range(3):
+            resp = req.post(
+                f"{base}/chat/completions",
+                headers=headers,
+                json={
+                    "model": conn.model,
+                    "messages": messages,
+                    "max_tokens": 8000,
+                    "temperature": 0.3,
+                },
+                timeout=timeout,
+            )
+            if resp.status_code != 504:
+                break
+            if attempt < 2:
+                print(f"[falcon] 504 on attempt {attempt + 1}, retrying in 5s…")
+                _time.sleep(5)
+
         if resp.status_code != 200:
-            return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            # Return a clean message instead of raw HTML gateway error pages
+            if "<html" in resp.text.lower() or resp.status_code in (502, 503, 504):
+                return {"success": False, "error": f"Falcon gateway error (HTTP {resp.status_code}). The model is overloaded or the ticket content is too large. Try splitting into smaller tickets or retry in a moment."}
+            return {"success": False, "error": f"Falcon error (HTTP {resp.status_code}): {resp.text[:300]}"}
 
         data = resp.json()
         choice = data.get("choices", [{}])[0]
@@ -396,3 +419,5 @@ def _generate_falcon(conn: LLMConnection, system_prompt: str, user_message: str)
     if not content:
         return {"success": False, "error": f"Falcon returned empty content (finish_reason: {finish_reason}). Try a different model."}
     return {"success": True, "test_plan": content}
+
+# NOTE: Callers should catch requests.exceptions.ReadTimeout and surface a friendly message.

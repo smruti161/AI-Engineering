@@ -43,8 +43,8 @@ def _build_docx(content: str, output_path: Path):
 
     lines = content.split("\n")
     i = 0
-    in_table = False
     table_rows = []
+    last_was_list = False  # track whether the previous content was a list item
 
     while i < len(lines):
         line = lines[i]
@@ -53,38 +53,45 @@ def _build_docx(content: str, output_path: Path):
         if line.startswith("# ") and not line.startswith("## "):
             p = doc.add_heading(line[2:].strip(), level=1)
             set_heading(p, 1)
+            last_was_list = False
 
         # Heading 2
         elif line.startswith("## ") and not line.startswith("### "):
             p = doc.add_heading(line[3:].strip(), level=2)
             set_heading(p, 2)
+            last_was_list = False
 
         # Heading 3
         elif line.startswith("### "):
             p = doc.add_heading(line[4:].strip(), level=3)
             set_heading(p, 3)
+            last_was_list = False
 
         # Table row — collect and render as a table
         elif line.startswith("|"):
             table_rows.append(line)
-            # Look ahead to collect all table rows
             while i + 1 < len(lines) and lines[i + 1].startswith("|"):
                 i += 1
                 table_rows.append(lines[i])
             _add_table(doc, table_rows)
             table_rows = []
+            last_was_list = False
 
         # Bullet list
         elif line.startswith("- ") or line.startswith("* "):
             text = _strip_md(line[2:].strip())
             p = doc.add_paragraph(text, style="List Bullet")
             p.runs[0].font.size = Pt(10)
+            p.paragraph_format.space_after = Pt(2)
+            last_was_list = True
 
         # Numbered list
         elif re.match(r"^\d+\.\s", line):
             text = _strip_md(re.sub(r"^\d+\.\s", "", line))
             p = doc.add_paragraph(text, style="List Number")
             p.runs[0].font.size = Pt(10)
+            p.paragraph_format.space_after = Pt(2)
+            last_was_list = True
 
         # Blockquote
         elif line.startswith("> "):
@@ -94,10 +101,14 @@ def _build_docx(content: str, output_path: Path):
                 run.italic = True
                 run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
                 run.font.size = Pt(10)
+            last_was_list = False
 
-        # Empty line
+        # Empty line — skip if between/after list items to avoid huge gaps
         elif line.strip() == "":
-            doc.add_paragraph("")
+            next_line = lines[i + 1] if i + 1 < len(lines) else ""
+            next_is_list = next_line.startswith("- ") or next_line.startswith("* ")
+            if not last_was_list and not next_is_list:
+                doc.add_paragraph("")
 
         # Normal paragraph
         else:
@@ -105,6 +116,7 @@ def _build_docx(content: str, output_path: Path):
             if text.strip():
                 p = doc.add_paragraph()
                 _add_formatted_run(p, line)
+            last_was_list = False
 
         i += 1
 
@@ -112,7 +124,7 @@ def _build_docx(content: str, output_path: Path):
 
 
 def _add_table(doc, rows: list[str]):
-    from docx.shared import Pt, RGBColor
+    from docx.shared import Pt, RGBColor, Inches
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
 
@@ -123,7 +135,13 @@ def _add_table(doc, rows: list[str]):
 
     parsed = []
     for row in data_rows:
-        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        # Strip leading/trailing pipes then split; handle edge whitespace
+        stripped = row.strip()
+        if stripped.startswith("|"):
+            stripped = stripped[1:]
+        if stripped.endswith("|"):
+            stripped = stripped[:-1]
+        cells = [c.strip() for c in stripped.split("|")]
         parsed.append(cells)
 
     if not parsed:
@@ -133,17 +151,35 @@ def _add_table(doc, rows: list[str]):
     table = doc.add_table(rows=len(parsed), cols=num_cols)
     table.style = "Table Grid"
 
+    # Distribute column widths: give Summary column more space
+    available_width = 6.0  # inches (page width minus margins)
+    if num_cols == 5:
+        col_widths = [1.0, 0.8, 2.4, 0.9, 0.9]
+    else:
+        col_widths = [available_width / num_cols] * num_cols
+
+    for c_idx, width in enumerate(col_widths[:num_cols]):
+        for cell in table.columns[c_idx].cells:
+            cell.width = Inches(width)
+
     for r_idx, row in enumerate(parsed):
-        for c_idx, cell_text in enumerate(row):
-            if c_idx >= num_cols:
-                break
+        for c_idx in range(num_cols):
+            cell_text = row[c_idx] if c_idx < len(row) else ""
             cell = table.cell(r_idx, c_idx)
             cell.text = _strip_md(cell_text)
-            run = cell.paragraphs[0].runs
-            if run:
-                run[0].font.size = Pt(9)
-                if r_idx == 0:
-                    run[0].bold = True
+            para = cell.paragraphs[0]
+            run = para.runs[0] if para.runs else para.add_run(cell.text)
+            run.font.size = Pt(9)
+            if r_idx == 0:
+                run.bold = True
+                # Header row background: light blue-grey
+                tc = cell._tc
+                tcPr = tc.get_or_add_tcPr()
+                shd = OxmlElement("w:shd")
+                shd.set(qn("w:val"), "clear")
+                shd.set(qn("w:color"), "auto")
+                shd.set(qn("w:fill"), "D9E1F2")
+                tcPr.append(shd)
 
 
 def _strip_md(text: str) -> str:

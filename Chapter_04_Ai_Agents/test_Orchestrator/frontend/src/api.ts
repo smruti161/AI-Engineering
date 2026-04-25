@@ -54,6 +54,7 @@ export const fetchIssues = (data: {
 export const generateTestPlan = (data: {
   llm_connection_name: string
   issues: object[]
+  child_issues?: object[]
   product_name: string
   project_key: string
   additional_context?: string
@@ -61,6 +62,8 @@ export const generateTestPlan = (data: {
 
 export const exportMarkdown = () => API.get('/test-plan/export/markdown', { responseType: 'blob' })
 export const exportDoc = () => API.get('/test-plan/export/doc', { responseType: 'blob' })
+export const exportDocFromHtml = (data: { html: string; project_key: string; filename: string }) =>
+  API.post('/test-plan/export/doc-from-html', data, { responseType: 'blob' })
 
 // ── Test Cases ───────────────────────────────────────────────────────────────
 
@@ -77,9 +80,3 @@ export const generateTestCases = (data: {
 export const exportTestCasesMarkdown = () => API.get('/test-cases/export/markdown', { responseType: 'blob' })
 export const exportTestCasesDoc = () => API.get('/test-cases/export/doc', { responseType: 'blob' })
 
-// ── History ──────────────────────────────────────────────────────────────────
-
-export const getHistory = () => API.get('/history')
-export const downloadHistoryMarkdown = (id: string) => API.get(`/history/${id}/download/markdown`, { responseType: 'blob' })
-export const downloadHistoryDoc = (id: string) => API.get(`/history/${id}/download/doc`, { responseType: 'blob' })
-export const deleteHistoryRecord = (id: string) => API.delete(`/history/${id}`)

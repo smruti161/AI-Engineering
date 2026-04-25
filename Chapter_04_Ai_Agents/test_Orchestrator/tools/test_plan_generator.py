@@ -4,10 +4,8 @@ Layer 3 — Orchestrator.
 Loads template → checks missing info → calls LLM → validates output → returns test plan.
 """
 
-import os
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional
 
 from tools.llm_client import LLMConnection, check_missing_info, generate_test_plan
 from tools.pdf_exporter import export_to_markdown
@@ -15,17 +13,11 @@ from tools.doc_exporter import export_to_doc
 
 TEMPLATE_PATH = Path(__file__).parent.parent / "test_plan_templates" / "test_plan.md"
 
-# Loaded once at import time and cached (gemini.md Invariant 3)
-_TEMPLATE_CACHE: Optional[str] = None
-
 
 def get_template() -> str:
-    global _TEMPLATE_CACHE
-    if _TEMPLATE_CACHE is None:
-        if not TEMPLATE_PATH.exists():
-            raise FileNotFoundError(f"Test plan template not found at: {TEMPLATE_PATH}")
-        _TEMPLATE_CACHE = TEMPLATE_PATH.read_text(encoding="utf-8")
-    return _TEMPLATE_CACHE
+    if not TEMPLATE_PATH.exists():
+        raise FileNotFoundError(f"Test plan template not found at: {TEMPLATE_PATH}")
+    return TEMPLATE_PATH.read_text(encoding="utf-8")
 
 
 def run(
@@ -34,6 +26,7 @@ def run(
     product_name: str,
     project_key: str,
     additional_context: str = "",
+    child_issues: list[dict] | None = None,
 ) -> dict:
     """
     Full orchestration:
@@ -68,6 +61,10 @@ def run(
 
     test_plan_md = result["test_plan"]
 
+    # Replace the Deliverables section with child items when provided
+    if child_issues:
+        test_plan_md = _inject_deliverables(test_plan_md, child_issues)
+
     # Validate all required sections are present
     section_warnings = _validate_sections(template, test_plan_md)
 
@@ -75,7 +72,7 @@ def run(
     safe_key = project_key.replace("/", "_").replace(" ", "_")
 
     md_path = export_to_markdown(test_plan_md, safe_key, timestamp)
-    doc_path = export_to_doc(test_plan_md, safe_key, timestamp)
+    # .docx is generated on first download to avoid blocking the response
 
     return {
         "success": True,
@@ -84,15 +81,51 @@ def run(
             "product_name": product_name,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "issues_count": len(issues),
+            "issue_keys": [i.get("key", "") for i in issues],
             "missing_info_flags": missing_flags,
             "section_warnings": section_warnings,
         },
         "test_plan_markdown": test_plan_md,
         "export_paths": {
             "markdown": str(md_path),
-            "doc": str(doc_path),
+            "doc": str(md_path.with_suffix(".docx")),
         },
     }
+
+
+def _inject_deliverables(test_plan_md: str, child_issues: list[dict]) -> str:
+    """
+    Replace the LLM-generated Deliverables table with a table built from child_issues.
+    Finds the section between '## ...Deliverables' and the next section boundary.
+    """
+    import re
+
+    rows = "\n".join(
+        "| {} | {} | **{}** | {} | {} |".format(
+            i.get("issue_type", ""),
+            i.get("key", ""),
+            i.get("summary", "").replace("|", "-"),
+            i.get("status", ""),
+            i.get("component", "") or "Not Specified",
+        )
+        for i in child_issues
+    )
+    new_table = (
+        "| Issue Type | Key | Summary | Status | Components |\n"
+        "|---|---|---|---|---|\n"
+        + rows
+    )
+
+    # Use a callable so \n is a real newline, not a literal backslash-n
+    pattern = r"(##\s+\d*\.?\s*Deliverables[^\n]*\n)(.*?)((?:\n---|\n##\s))"
+    def _replacer(m):
+        return m.group(1) + "\n" + new_table + "\n" + m.group(3)
+
+    updated = re.sub(pattern, _replacer, test_plan_md, flags=re.DOTALL | re.IGNORECASE)
+
+    if updated == test_plan_md:
+        print("[test_plan_generator] Deliverables section not found for injection; skipping.")
+    return updated
 
 
 def _validate_sections(template: str, generated: str) -> list[str]:

@@ -112,6 +112,7 @@ class ImageData(BaseModel):
 class GenerateRequest(BaseModel):
     llm_connection_name: str
     issues: list[dict]
+    child_issues: list[dict] = []
     product_name: str
     project_key: str
     additional_context: str = ""
@@ -296,6 +297,7 @@ def generate(req: GenerateRequest):
         product_name=req.product_name,
         project_key=req.project_key,
         additional_context=req.additional_context,
+        child_issues=req.child_issues or None,
     )
 
     if not result["success"]:
@@ -382,6 +384,29 @@ def download_test_cases_file(path: str):
 
 # ── Export Endpoints ──────────────────────────────────────────────────────────
 
+class DocFromHtmlRequest(BaseModel):
+    html: str
+    project_key: str = "PLAN"
+    filename: str = "test_plan"
+
+
+@app.post("/api/test-plan/export/doc-from-html")
+def export_doc_from_html(req: DocFromHtmlRequest):
+    """Generate a .docx from edited HTML content (user-edited test plan)."""
+    from tools.html_to_markdown import html_to_markdown
+    from tools.doc_exporter import export_to_doc
+
+    md = html_to_markdown(req.html)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    safe_key = req.project_key.replace("/", "_").replace(" ", "_")
+    doc_path = export_to_doc(md, safe_key, timestamp)
+    return FileResponse(
+        str(doc_path),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"{req.filename}.docx",
+    )
+
+
 @app.get("/api/test-plan/export/markdown")
 def export_markdown():
     if not _last_result:
@@ -394,11 +419,21 @@ def export_markdown():
 
 @app.get("/api/test-plan/export/doc")
 def export_doc():
+    from tools.doc_exporter import export_to_doc
     if not _last_result:
         raise HTTPException(status_code=404, detail="No test plan generated yet.")
     path = Path(_last_result["export_paths"]["doc"])
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Word document not found.")
+        # Generate .docx on-demand from the paired .md file
+        md_path = Path(_last_result["export_paths"]["markdown"])
+        if not md_path.exists():
+            raise HTTPException(status_code=404, detail="Source markdown file not found.")
+        md_text = md_path.read_text(encoding="utf-8")
+        stem = md_path.stem
+        parts = stem.split("_")
+        project_key = parts[2] if len(parts) > 2 else "PLAN"
+        timestamp = "_".join(parts[3:]) if len(parts) > 3 else "000000_000000"
+        path = export_to_doc(md_text, project_key, timestamp)
     return FileResponse(
         str(path),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

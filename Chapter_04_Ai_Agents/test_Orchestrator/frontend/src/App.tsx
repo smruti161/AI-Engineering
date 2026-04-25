@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import FetchIssues from './components/FetchIssues'
 import Review from './components/Review'
 import TestPlan from './components/TestPlan'
-import History from './components/History'
 import TestCaseCreator from './components/TestCaseCreator'
 import ConnectionsPage from './components/ConnectionsPage'
 import { getConnections, getLLMConnections } from './api'
@@ -20,6 +19,8 @@ export interface FetchState {
   connectionName: string; llmConnectionName: string
   productName: string; projectKey: string; issues: Issue[]; additionalContext: string
   coverage?: string
+  epics?: Issue[]
+  childrenMap?: Record<string, Issue[]>
 }
 
 const NAV_ITEMS: { id: Module; label: string; desc: string; icon: React.ReactNode; available: boolean }[] = [
@@ -64,7 +65,6 @@ const NAV_ITEMS: { id: Module; label: string; desc: string; icon: React.ReactNod
 export default function App() {
   const [activeModule, setActiveModule]   = useState<Module>('test-planner')
   const [step, setStep]                   = useState<Step>(1)
-  const [showHistory, setShowHistory]     = useState(false)
   const [dark, setDark]                   = useState(() => localStorage.getItem('theme') === 'dark')
   const [fetchState, setFetchState]       = useState<FetchState>({
     connectionName: '', llmConnectionName: '', productName: '', projectKey: '', issues: [], additionalContext: '',
@@ -209,14 +209,6 @@ export default function App() {
             <h1 className="content-title">{activeNav.label}</h1>
             <p className="content-subtitle">{activeNav.desc}</p>
           </div>
-          {activeModule === 'test-planner' && connectionsReady && !showHistory && (
-            <button className="btn-history" onClick={() => setShowHistory(true)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-              View History
-            </button>
-          )}
         </header>
 
         <div className="content-area">
@@ -251,10 +243,7 @@ export default function App() {
           {/* ── Test Planner ── */}
           {activeModule === 'test-planner' && connectionsReady && (
             <>
-              {showHistory ? (
-                <History onBack={() => setShowHistory(false)} />
-              ) : (
-                <>
+              <>
                   <nav className="stepper">
                     {steps.map((label, i) => {
                       const num = (i + 1) as Step
@@ -294,8 +283,7 @@ export default function App() {
                       />
                     )}
                   </main>
-                </>
-              )}
+              </>
             </>
           )}
 

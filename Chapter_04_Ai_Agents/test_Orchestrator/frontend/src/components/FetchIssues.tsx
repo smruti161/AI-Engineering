@@ -88,6 +88,8 @@ export default function FetchIssues({ fetchState, setFetchState, onNext, onBack 
         projectKey,
         issues,
         additionalContext: '',
+        epics: res.data.epics || [],
+        childrenMap: res.data.children_map || {},
       })
       onNext()
     } catch (e: any) {

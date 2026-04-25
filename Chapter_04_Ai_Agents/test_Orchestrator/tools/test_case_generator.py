@@ -14,7 +14,7 @@ from tools.pdf_exporter import export_to_markdown
 from tools.doc_exporter import export_to_doc
 
 TEMPLATE_PATH = Path(__file__).parent.parent / "test_plan_templates" / "test_cases_template.md"
-ANTI_HALLUCINATION_PATH = Path(__file__).parent.parent / "anti_haluination_rules" / "anti_hallucination.md"
+ANTI_HALLUCINATION_PATH = Path(__file__).parent.parent.parent / "anti_haluination_rules" / "anti_hallucination.md"
 
 def _get_template() -> str:
     if not TEMPLATE_PATH.exists():
@@ -126,12 +126,18 @@ The table MUST use these EXACT column names in order:
 
 Generate the tables now."""
 
+    # Cap description length to keep the prompt within Falcon's processing limit.
+    # Very long descriptions (>3000 chars) cause 504 gateway timeouts.
+    MAX_DESC_CHARS = 3000
+
     lines = [f"# Test Case Generation Request\n\n**Product:** {product_name}\n**Project:** {project_key}\n**Dump Used:** {dump_used.strip() or 'Not Specified'}\n"]
     for issue in issues:
         lines.append(f"\n## [{issue['key']}] {issue['summary']}")
         component = (issue.get("component") or "").strip()
         lines.append(f"**Type:** {issue.get('issue_type', 'N/A')} | **Priority:** {issue.get('priority', 'N/A')} | **Component:** {component or 'Not Specified'}")
         desc = (issue.get("description") or "").strip()
+        if len(desc) > MAX_DESC_CHARS:
+            desc = desc[:MAX_DESC_CHARS] + "\n\n[Description truncated to fit model limits. Core requirements above are complete.]"
         lines.append(f"\n**Description:**\n{desc or '[NEEDS INFO: No description provided]'}")
     if has_context:
         lines.append(f"\n## Additional Context from Tester\n{additional_context.strip()}")
@@ -154,10 +160,13 @@ Generate the tables now."""
         elif llm_conn.provider == "ollama":
             result = lc._generate_ollama(llm_conn, system_prompt, user_message)
         elif llm_conn.provider == "falcon":
-            result = lc._generate_falcon(llm_conn, system_prompt, user_message)
+            result = lc._generate_falcon(llm_conn, system_prompt, user_message, timeout=300)
         else:
             return {"success": False, "error": f"Unknown provider: {llm_conn.provider}"}
     except Exception as e:
+        import requests as _req
+        if isinstance(e, _req.exceptions.ReadTimeout):
+            return {"success": False, "error": "Falcon timed out generating test cases. Try with a single Jira ticket or retry — the model may be under load."}
         return {"success": False, "error": str(e)}
 
     if not result.get("success"):

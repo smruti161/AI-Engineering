@@ -228,6 +228,256 @@ function fromEditLines(display: string, wasNumbered: boolean): string {
   return lines.map((l, i) => `${i + 1}. ${l}`).join(' / ')
 }
 
+// ── Read-only cell renderer: splits "1. a / 2. b" into numbered lines ────────
+// originalValue: display-format original (lines joined by \n) — used to highlight new lines in green
+// onLineClick: when provided (edit mode), each line is clickable; receives (lineIndex, caretOffset)
+function renderCell(
+  value: string,
+  originalValue?: string,
+  onLineClick?: (li: number, caretOffset?: number) => void,
+): React.ReactNode {
+  function captureClick(e: React.MouseEvent, li: number) {
+    e.stopPropagation()
+    let offset: number | undefined
+    try {
+      // Standard (Chrome/Safari) — gives character offset at click point
+      const range = (document as any).caretRangeFromPoint?.(e.clientX, e.clientY)
+      if (range) { offset = range.startOffset }
+      // Firefox fallback
+      else {
+        const pos = (document as any).caretPositionFromPoint?.(e.clientX, e.clientY)
+        if (pos) offset = pos.offset
+      }
+    } catch { /* ignore */ }
+    onLineClick!(li, offset)
+  }
+
+  if (!isNumberedList(value)) {
+    const isEdited = originalValue !== undefined && value !== originalValue
+    return (
+      <span
+        style={{
+          background: isEdited ? 'rgba(34,197,94,0.12)' : undefined,
+          color: isEdited ? '#15803d' : undefined,
+          borderRadius: isEdited ? 3 : undefined,
+          padding: isEdited ? '0 2px' : undefined,
+          cursor: onLineClick ? 'text' : undefined,
+        }}
+        onClick={onLineClick ? e => captureClick(e, 0) : undefined}
+      >
+        {value}
+      </span>
+    )
+  }
+
+  const lines = value
+    .split(/\s+\/\s+/)
+    .map(s => s.replace(/^\d+\.\s*/, '').trim())
+    .filter(Boolean)
+
+  const originalSet = originalValue
+    ? new Set(originalValue.split('\n').map(l => l.trim()).filter(Boolean))
+    : null
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {lines.map((line, i) => {
+        const isNew = originalSet !== null && !originalSet.has(line)
+        return (
+          <div
+            key={i}
+            style={{
+              display: 'flex', gap: 4,
+              cursor: onLineClick ? 'text' : 'default',
+              background: isNew ? 'rgba(34,197,94,0.12)' : undefined,
+              borderRadius: isNew ? 3 : undefined,
+              padding: isNew ? '0 2px' : undefined,
+            }}
+            onClick={onLineClick ? e => captureClick(e, i) : undefined}
+          >
+            <span style={{ color: isNew ? '#15803d' : 'var(--text-muted)', minWidth: 16, flexShrink: 0, fontSize: '0.78rem' }}>
+              {i + 1}.
+            </span>
+            <span style={{ color: isNew ? '#15803d' : undefined }}>{line}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Line-by-line editor with green highlight for new/changed lines ────────────
+// focusLine:   which line index to focus on mount
+// focusCursor: character offset to place the cursor (-1 = end of line)
+function LineEditor({
+  value,
+  originalValue,
+  onChange,
+  onCommit,
+  focusLine = 0,
+  focusCursor = -1,
+}: {
+  value: string
+  originalValue: string
+  onChange: (v: string) => void
+  onCommit: () => void
+  focusLine?: number
+  focusCursor?: number
+}) {
+  const historyRef = useRef<string[]>([])
+  const valueRef = useRef(value)
+  const linesRef = useRef<string[]>([])
+  // Set true before any programmatic focus() to prevent onBlur → onCommit
+  const skipBlurRef = useRef(false)
+
+  const originalSet = new Set(
+    originalValue.split('\n').map(l => l.trim()).filter(Boolean)
+  )
+  const lines = value.split('\n')
+  linesRef.current = lines
+
+  // Focus the correct textarea and place cursor where the user clicked
+  useEffect(() => {
+    const inputs = document.querySelectorAll<HTMLTextAreaElement>('.line-editor-input')
+    const target = inputs[focusLine]
+    if (!target) return
+    skipBlurRef.current = true
+    target.focus()
+    skipBlurRef.current = false
+    const end = target.value.length
+    const pos = focusCursor >= 0 ? Math.min(focusCursor, end) : end
+    target.setSelectionRange(pos, pos)
+  }, []) // intentionally runs only on mount
+
+  function pushHistory(prev: string) {
+    historyRef.current.push(prev)
+    if (historyRef.current.length > 100) historyRef.current.shift()
+  }
+
+  function moveFocus(targetIdx: number) {
+    setTimeout(() => {
+      const inputs = document.querySelectorAll<HTMLTextAreaElement>('.line-editor-input')
+      const next = inputs[targetIdx]
+      if (!next) return
+      skipBlurRef.current = true
+      next.focus()
+      skipBlurRef.current = false
+    }, 0)
+  }
+
+  function updateLine(i: number, text: string) {
+    const current = linesRef.current
+    pushHistory(valueRef.current)
+    const next = [...current]
+    next[i] = text
+    const newVal = next.join('\n')
+    valueRef.current = newVal
+    linesRef.current = next
+    onChange(newVal)
+  }
+
+  function handleKeyDown(i: number, e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault()
+      e.stopPropagation()
+      const prev = historyRef.current.pop()
+      if (prev !== undefined) {
+        valueRef.current = prev
+        linesRef.current = prev.split('\n')
+        onChange(prev)
+      }
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      const current = linesRef.current
+      pushHistory(valueRef.current)
+      const next = [...current]
+      // Shift+Enter at the very start of line 1 → insert a blank line BEFORE it
+      const insertAt = (e.shiftKey && i === 0 && (e.currentTarget.selectionStart ?? 1) === 0)
+        ? 0
+        : i + 1
+      next.splice(insertAt, 0, '')
+      const newVal = next.join('\n')
+      valueRef.current = newVal
+      linesRef.current = next
+      onChange(newVal)
+      moveFocus(insertAt)
+    }
+    if (e.key === 'Backspace' && linesRef.current[i] === '' && linesRef.current.length > 1) {
+      e.preventDefault()
+      e.stopPropagation()
+      const current = linesRef.current
+      pushHistory(valueRef.current)
+      const next = current.filter((_, idx) => idx !== i)
+      const newVal = next.join('\n')
+      valueRef.current = newVal
+      linesRef.current = next
+      onChange(newVal)
+      moveFocus(Math.max(0, i - 1))
+    }
+    if (e.key === 'Tab' || e.key === 'Escape') {
+      e.preventDefault()
+      onCommit()
+    }
+  }
+
+  return (
+    <div onClick={e => e.stopPropagation()} style={{ width: '100%' }}>
+      {lines.map((line, i) => {
+        const isNew = line.trim() !== '' && !originalSet.has(line.trim())
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginBottom: 2 }}>
+            <span style={{ color: isNew ? '#15803d' : 'var(--text-muted)', minWidth: 16, fontSize: '0.75rem', flexShrink: 0, paddingTop: 2 }}>
+              {i + 1}.
+            </span>
+            <textarea
+              className="line-editor-input"
+              value={line}
+              rows={1}
+              onChange={e => {
+                updateLine(i, e.target.value)
+                // auto-height
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }}
+              onKeyDown={e => handleKeyDown(i, e)}
+              onBlur={() => {
+                if (skipBlurRef.current) return
+                onCommit()
+              }}
+              ref={el => {
+                if (!el) return
+                el.style.height = 'auto'
+                el.style.height = el.scrollHeight + 'px'
+              }}
+              style={{
+                flex: 1,
+                border: 'none',
+                borderBottom: '1px solid var(--border)',
+                background: isNew ? 'rgba(34,197,94,0.12)' : 'transparent',
+                color: isNew ? '#15803d' : 'var(--text)',
+                fontSize: 'inherit',
+                fontFamily: 'inherit',
+                padding: '1px 4px',
+                outline: 'none',
+                lineHeight: 1.5,
+                resize: 'none',
+                overflow: 'hidden',
+                display: 'block',
+                width: '100%',
+                boxSizing: 'border-box',
+                wordBreak: 'break-word',
+              }}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function deriveProjectKey(jiraIdsRaw: string): string {
   const first = jiraIdsRaw.split(',')[0].trim()
   return first ? first.replace(/-\d+$/, '').toUpperCase() : ''
@@ -264,10 +514,16 @@ export default function TestCaseCreator() {
   const [tables, setTables] = useState<TableSection[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editingCell, setEditingCell] = useState<{ si: number; ri: number; ci: number } | null>(null)
   const [editValue, setEditValue] = useState('')
   const [editIsNumbered, setEditIsNumbered] = useState(false)
+  const [originalEditValue, setOriginalEditValue] = useState('')
+  const [editFocusLine, setEditFocusLine] = useState(0)
+  const [editCursorOffset, setEditCursorOffset] = useState(-1)
+  // maps "si-ri-ci" → display-format value before any edits; used to keep green after commit
+  const [originalCells, setOriginalCells] = useState<Record<string, string>>({})
 
   useEffect(() => {
     Promise.all([getConnections(), getLLMConnections()]).then(([j, l]) => {
@@ -356,12 +612,16 @@ export default function TestCaseCreator() {
         images: images.length > 0 ? images : undefined,
       })
       setResult(res.data)
+      setEditMode(false)
+      setEditingCell(null)
+      setOriginalCells({})
+      setShowSuccess(true)
 
       const parsed = parseMarkdownTables(res.data.test_cases || '')
       const enriched = parsed.map(sec => ({
         ...sec,
         headers: [...sec.headers, 'Coverage (Issues)'],
-        rows: sec.rows.map(row => [...row, coverage]),
+        rows: sec.rows.map(row => [...row, coverage.toUpperCase()]),
       }))
       setTables(enriched)
       const allKeys = new Set<string>()
@@ -479,13 +739,20 @@ export default function TestCaseCreator() {
     }))
   }
 
-  function startEditing(si: number, ri: number, ci: number, e: React.MouseEvent) {
-    e.stopPropagation()
+  function startEditing(si: number, ri: number, ci: number, focusLine = 0, caretOffset = -1, e?: React.MouseEvent) {
+    e?.stopPropagation()
     const currentValue = tables[si].rows[ri][ci]
     const numbered = isNumberedList(currentValue)
+    const displayValue = toEditDisplay(currentValue)
     setEditIsNumbered(numbered)
-    setEditValue(toEditDisplay(currentValue))
+    setEditValue(displayValue)
+    setOriginalEditValue(displayValue)
     setEditingCell({ si, ri, ci })
+    setEditFocusLine(focusLine)
+    setEditCursorOffset(caretOffset)
+    // Persist the pre-edit original only once per cell per generation
+    const cellKey = `${si}-${ri}-${ci}`
+    setOriginalCells(prev => cellKey in prev ? prev : { ...prev, [cellKey]: displayValue })
   }
 
   function commitEdit() {
@@ -513,6 +780,8 @@ export default function TestCaseCreator() {
     setEditingCell(null)
     setEditValue('')
     setEditIsNumbered(false)
+    setOriginalCells({})
+    setShowSuccess(false)
   }
 
   const totalRows = tables.reduce((acc, sec) => acc + sec.rows.length, 0)
@@ -651,7 +920,7 @@ export default function TestCaseCreator() {
             {/* Coverage — optional */}
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Coverage (Issues)</label>
-              <input value={coverage} onChange={e => setCoverage(e.target.value)} />
+              <input value={coverage} onChange={e => setCoverage(e.target.value.toUpperCase())} />
             </div>
 
             {/* Dump Used — mandatory */}
@@ -761,34 +1030,71 @@ export default function TestCaseCreator() {
                   {form.productName}
                 </span>
               )}
-              <span className="badge badge-info">{deriveProjectKey(form.jiraIdsRaw)}</span>
+              {form.jiraIdsRaw.split(',').map(s => s.trim()).filter(Boolean).map(id => (
+                <span key={id} className="badge badge-info">{id}</span>
+              ))}
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 {selectedCount} of {totalRows} test cases selected
               </span>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn-outline"
-                onClick={() => { setEditMode(e => !e); setEditingCell(null) }}
-                style={editMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-              >
-                {editMode ? '✓ Done Editing' : '✎ Edit'}
-              </button>
-              <button className="btn-outline" onClick={handleDownloadMd} disabled={downloading}>
-                {downloading ? 'Downloading...' : '⬇ Download .md'}
-              </button>
-              <button
-                className="btn-primary"
-                onClick={handleExportCSV}
-                disabled={selectedCount === 0}
-                title={selectedCount === 0 ? 'Select at least one test case' : `Export ${selectedCount} selected test cases as CSV`}>
-                ⬇ Export CSV ({selectedCount})
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn-outline"
+                  onClick={() => { setEditMode(e => !e); setEditingCell(null) }}
+                  style={editMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+                >
+                  {editMode ? '✓ Done Editing' : '✎ Edit'}
+                </button>
+
+                <button
+                  className="btn-primary"
+                  onClick={handleExportCSV}
+                  disabled={editMode || selectedCount === 0}
+                  style={editMode ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                  title={selectedCount === 0 && !editMode ? 'Select at least one test case' : undefined}>
+                  ⬇ Export CSV ({selectedCount})
+                </button>
+              </div>
+              {editMode && (
+                <span style={{ fontSize: '0.75rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  ⚠ Click ✓ Done Editing to save before exporting
+                </span>
+              )}
             </div>
           </div>
 
+          {showSuccess && (
+            <div style={{
+              marginBottom: 12, padding: '10px 14px', borderRadius: 8,
+              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.35)',
+              color: '#15803d', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" style={{ flexShrink: 0 }}>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+              </svg>
+              Test cases generated successfully! Review below, select the ones you need, then export to CSV.
+            </div>
+          )}
+
           {/* Test case tables with checkboxes */}
-          <div className="card" style={{ padding: '20px 24px' }}>
+          <div className="card" style={{ padding: '20px 24px', position: 'relative' }}>
+            {/* Read-only banner — hidden in edit mode */}
+            {!editMode && (
+              <div style={{
+                position: 'absolute', top: 12, right: 16,
+                display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: '0.72rem', color: 'var(--text-muted)',
+                background: 'var(--bg-stepper)', border: '1px solid var(--border)',
+                borderRadius: 6, padding: '2px 10px', userSelect: 'none',
+              }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Read Only — click ✎ Edit to modify
+              </div>
+            )}
             {/* Global select-all */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
               <input
@@ -856,32 +1162,26 @@ export default function TestCaseCreator() {
                               </td>
                               {row.map((cell, ci) => {
                                 const isActive = editMode && editingCell?.si === si && editingCell?.ri === ri && editingCell?.ci === ci
+                                const cellKey = `${si}-${ri}-${ci}`
                                 return (
                                   <td key={ci}
-                                    style={{ cursor: editMode ? 'text' : undefined, verticalAlign: 'top' }}
-                                    onClick={editMode ? e => startEditing(si, ri, ci, e) : undefined}>
+                                    style={{ cursor: editMode ? 'text' : 'default', verticalAlign: 'top' }}
+                                    title={!editMode ? 'Click ✎ Edit to modify' : undefined}
+                                    onClick={editMode && !isActive ? e => startEditing(si, ri, ci, 0, -1, e) : undefined}>
                                     {isActive ? (
-                                      <textarea
-                                        autoFocus
+                                      <LineEditor
                                         value={editValue}
-                                        ref={el => {
-                                          if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' }
-                                        }}
-                                        onChange={e => {
-                                          setEditValue(e.target.value)
-                                          e.target.style.height = 'auto'
-                                          e.target.style.height = e.target.scrollHeight + 'px'
-                                        }}
-                                        onBlur={commitEdit}
-                                        onClick={e => e.stopPropagation()}
-                                        style={{
-                                          width: '100%', border: 'none', background: 'transparent',
-                                          fontSize: 'inherit', fontFamily: 'inherit', padding: 0, outline: 'none',
-                                          color: 'var(--text)', resize: 'none', overflow: 'hidden',
-                                          lineHeight: 1.5, display: 'block',
-                                        }}
+                                        originalValue={originalEditValue}
+                                        onChange={setEditValue}
+                                        onCommit={commitEdit}
+                                        focusLine={editFocusLine}
+                                        focusCursor={editCursorOffset}
                                       />
-                                    ) : cell}
+                                    ) : renderCell(
+                                        cell,
+                                        originalCells[cellKey],
+                                        editMode ? (li, offset) => startEditing(si, ri, ci, li, offset ?? -1) : undefined,
+                                      )}
                                   </td>
                                 )
                               })}

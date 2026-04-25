@@ -3,7 +3,7 @@
  * Show fetched issues, missing info flags, allow adding context, then generate.
  */
 
-import { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { generateTestPlan } from '../api'
 import type { FetchState } from '../App'
 
@@ -28,7 +28,26 @@ export default function Review({ fetchState, setFetchState, onGenerated, onBack 
   const [screenshots, setScreenshots] = useState<ScreenshotItem[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { issues, llmConnectionName, productName, projectKey } = fetchState
+  const { issues, llmConnectionName, productName, projectKey, epics = [], childrenMap = {} } = fetchState
+
+  // Determine which issues to display in the review table:
+  // - All epics that were fetched
+  // - Any non-epic issues that are NOT children of a fetched epic (standalone items)
+  const childKeys = new Set(Object.values(childrenMap).flat().map(c => c.key))
+  const epicKeys = new Set(epics.map(e => e.key))
+  const standaloneIssues = issues.filter(i => !epicKeys.has(i.key) && !childKeys.has(i.key))
+  const reviewIssues = [...epics, ...standaloneIssues]
+
+  // Track which epics are expanded to show children inline
+  const [expandedEpics, setExpandedEpics] = useState<Set<string>>(new Set())
+
+  function toggleEpic(key: string) {
+    setExpandedEpics(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
 
   // Compute missing info flags (Rule 2 from gemini.md — client-side preview)
   const flags: string[] = []
@@ -87,9 +106,11 @@ export default function Review({ fetchState, setFetchState, onGenerated, onBack 
     setGenerating(true)
     setError('')
     try {
+      const allChildren = Object.values(childrenMap).flat()
       const res = await generateTestPlan({
         llm_connection_name: llmConnectionName,
-        issues,
+        issues: reviewIssues,
+        child_issues: allChildren.length > 0 ? allChildren : undefined,
         product_name: productName,
         project_key: projectKey,
         additional_context: additionalContext,
@@ -107,58 +128,78 @@ export default function Review({ fetchState, setFetchState, onGenerated, onBack 
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            {(() => {
-              const types = [...new Set(issues.map(i => i.issue_type).filter(Boolean))]
-              const label = types.length === 1 ? `${types[0]}s` : 'Items'
-              return (
-                <>
-                  <h2>Review Jira {label} ({issues.length})</h2>
-                  <p style={{ marginBottom: 0 }}>{label} that will be used to generate the test plan</p>
-                </>
-              )
-            })()}
+            <h2>Review Jira Items ({reviewIssues.length})</h2>
+            <p style={{ marginBottom: 0 }}>
+              Items that will be used to generate the test plan
+              {Object.keys(childrenMap).length > 0 && (
+                <span style={{ color: 'var(--text-muted)', marginLeft: 8, fontSize: '0.8rem' }}>
+                  · {issues.length - reviewIssues.length} child work items fetched (expandable below)
+                </span>
+              )}
+            </p>
           </div>
           <span className="badge badge-info">{projectKey}</span>
         </div>
 
-        {/* Missing info warnings */}
-        {flags.length > 0 && (
-          <div className="alert alert-warning" style={{ marginBottom: 16 }}>
-            <strong>Quality warnings — add context below to improve results:</strong>
-            <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-              {flags.map((f, i) => <li key={i}>{f}</li>)}
-            </ul>
-          </div>
-        )}
-
-        {/* Issue cards */}
-        {issues.map(issue => (
-          <div key={issue.key} style={{
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '12px 16px',
-            marginBottom: 10,
-            background: 'var(--connection-bg)',
-          }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <div>
-                <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--accent)' }}>{issue.key}</span>
-                <span style={{ marginLeft: 8, fontWeight: 600, fontSize: '0.875rem', color: 'var(--text)' }}>{issue.summary}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-                <span className="badge badge-info">{issue.issue_type}</span>
-                <span className="badge badge-warning">{issue.status}</span>
-                {issue.priority && <span className="badge" style={{ background: 'var(--bg-stepper)', color: 'var(--text-muted)' }}>{issue.priority}</span>}
-                {issue.component && <span className="badge" style={{ background: 'var(--bg-stepper)', color: 'var(--accent)' }}>{issue.component}</span>}
-              </div>
-            </div>
-            {issue.description && (
-              <p style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                {issue.description.slice(0, 200)}{issue.description.length > 200 ? '...' : ''}
-              </p>
-            )}
-          </div>
-        ))}
+        {/* Issue table — epics + standalone items, children expand inline */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-stepper)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-heading)', borderBottom: '1px solid var(--border)' }}>Key</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-heading)', borderBottom: '1px solid var(--border)' }}>Summary</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-heading)', borderBottom: '1px solid var(--border)' }}>Type</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-heading)', borderBottom: '1px solid var(--border)' }}>Status</th>
+              <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-heading)', borderBottom: '1px solid var(--border)' }}>Child Items</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reviewIssues.map((issue, idx) => {
+              const children = childrenMap[issue.key] || []
+              const isExpanded = expandedEpics.has(issue.key)
+              return (
+                <React.Fragment key={issue.key}>
+                  <tr style={{ background: idx % 2 === 0 ? 'var(--bg-card)' : 'var(--connection-bg)' }}>
+                    <td style={{ padding: '8px 12px', color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>{issue.key}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>{issue.summary}</td>
+                    <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                      <span className="badge badge-info">{issue.issue_type}</span>
+                    </td>
+                    <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>{issue.status}</td>
+                    <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                      {children.length > 0 ? (
+                        <button
+                          onClick={() => toggleEpic(issue.key)}
+                          style={{
+                            background: 'none', border: '1px solid var(--border)', borderRadius: 4,
+                            padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem',
+                            color: 'var(--accent)', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {isExpanded ? '▲' : '▼'} {children.length} item{children.length !== 1 ? 's' : ''}
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                  {isExpanded && children.map(child => (
+                    <tr key={child.key} style={{ background: 'var(--connection-bg)' }}>
+                      <td style={{ padding: '6px 12px 6px 28px', color: 'var(--accent)', fontSize: '0.8rem', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>↳</span>{child.key}
+                      </td>
+                      <td style={{ padding: '6px 12px', color: 'var(--text-muted)', fontSize: '0.8rem', borderBottom: '1px solid var(--border)' }}>{child.summary}</td>
+                      <td style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
+                        <span className="badge badge-info" style={{ fontSize: '0.7rem', padding: '1px 6px' }}>{child.issue_type}</span>
+                      </td>
+                      <td style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{child.status}</td>
+                      <td style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)' }} />
+                    </tr>
+                  ))}
+                </React.Fragment>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* Additional Context & Screenshots */}
