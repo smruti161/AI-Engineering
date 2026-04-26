@@ -567,9 +567,11 @@ export default function TestCaseCreator() {
         jira_ids: jiraIds,
       })
       if (!res.data.success) { setFetchError(res.data.error || 'Failed to fetch.'); return }
-      const fetched = res.data.issues || []
+      // Exclude auto-fetched child issues (they have a parent_key); keep only what the user explicitly requested
+      const fetched = (res.data.issues || []).filter((i: any) => !i.parent_key)
       if (!fetched.length) { setFetchError('No issues found for the given Jira IDs.'); return }
       setIssues(fetched)
+      setCoverage(jiraIds.join(', ').toUpperCase())
       setStep(2)
     } catch (e: any) {
       setFetchError(e.response?.data?.detail || 'Fetch failed. Check connection and Jira IDs.')
@@ -917,10 +919,11 @@ export default function TestCaseCreator() {
               ))}
             </div>
 
-            {/* Coverage — optional */}
+            {/* Coverage — auto-filled from fetched IDs, editable */}
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Coverage (Issues)</label>
               <input value={coverage} onChange={e => setCoverage(e.target.value.toUpperCase())} />
+              <span className="hint">Auto-filled from the Jira IDs you entered. Edit to specify a different ticket or leave as-is.</span>
             </div>
 
             {/* Dump Used — mandatory */}
