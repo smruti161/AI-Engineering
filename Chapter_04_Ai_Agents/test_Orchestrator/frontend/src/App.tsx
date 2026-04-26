@@ -118,7 +118,6 @@ export default function App() {
           </div>
           <div>
             <div className="sidebar-title">Test Orchestrator</div>
-            <div className="sidebar-subtitle">Powered by AI</div>
           </div>
         </div>
 
@@ -198,6 +197,9 @@ export default function App() {
               </>
             )}
           </button>
+          {dark && (
+            <div className="sidebar-credit">© Smrutiranjan Maharana</div>
+          )}
         </div>
       </aside>
 
