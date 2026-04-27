@@ -581,11 +581,11 @@ export default function TestCaseCreator() {
   // ── Step 2: Generate ─────────────────────────────────────────────────────
 
   const PROGRESS_MSGS = [
-    'Analyzing Jira tickets...',
-    'Planning test scenarios...',
-    'Writing test cases...',
-    'Formatting output...',
-    'Almost done...',
+    '🔍 Analyzing Jira tickets...',
+    '🗺️ Planning test scenarios...',
+    '✍️ Writing test cases...',
+    '✨ Formatting output...',
+    '🎯 Almost done...',
   ]
 
   async function handleGenerate() {
@@ -789,10 +789,10 @@ export default function TestCaseCreator() {
   const totalRows = tables.reduce((acc, sec) => acc + sec.rows.length, 0)
   const selectedCount = selected.size
 
-  const tcSteps = ['1. Fetch Issues', '2. Review & Generate', '3. Test Cases']
+  const tcSteps = ['1. 📥 Fetch Issues', '2. 🔍 Review & Generate', '3. ✅ Test Cases']
 
   return (
-    <div>
+    <div className="tc-module">
       {/* Stepper */}
       <nav className="stepper">
         {tcSteps.map((label, i) => {
@@ -811,7 +811,7 @@ export default function TestCaseCreator() {
       {step === 1 && (
         <div>
           <div className="card">
-            <h2>Fetch Jira Issues</h2>
+            <h2>📥 Fetch Jira Issues</h2>
             <p>Select your connections and specify which Jira issues to create test cases for</p>
 
             <div className="form-row two-col">
@@ -864,7 +864,7 @@ export default function TestCaseCreator() {
               disabled={fetchLoading || !form.connectionName || !form.llmConnectionName || !form.jiraIdsRaw.trim()}>
               {fetchLoading
                 ? <><span className="spinner" /> Fetching Issues...</>
-                : '↓ Fetch Jira Issues'}
+                : '📥 Fetch Jira Issues'}
             </button>
           </div>
         </div>
@@ -874,7 +874,7 @@ export default function TestCaseCreator() {
       {step === 2 && (
         <div>
           <div className="card">
-            <h2>Review Issues</h2>
+            <h2>🔍 Review Issues</h2>
             <p>Review the fetched issues — the AI will generate all possible test cases per issue</p>
 
             {/* Quality flags */}
@@ -1006,7 +1006,7 @@ export default function TestCaseCreator() {
             <button className="btn-primary full-width" onClick={handleGenerate} disabled={generateLoading || !dumpUsed.trim()}>
               {generateLoading
                 ? <><span className="spinner" /> {progressMsg}</>
-                : `✦ Generate Test Cases for ${issues.length} issue${issues.length !== 1 ? 's' : ''}${screenshots.length > 0 ? ` + ${screenshots.length} screenshot${screenshots.length !== 1 ? 's' : ''}` : ''}`}
+                : `🚀 Generate Test Cases for ${issues.length} issue${issues.length !== 1 ? 's' : ''}${screenshots.length > 0 ? ` + ${screenshots.length} screenshot${screenshots.length !== 1 ? 's' : ''}` : ''}`}
             </button>
           </div>
 
@@ -1047,7 +1047,7 @@ export default function TestCaseCreator() {
                   onClick={() => { setEditMode(e => !e); setEditingCell(null) }}
                   style={editMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
                 >
-                  {editMode ? '✓ Done Editing' : '✎ Edit'}
+                  {editMode ? '✅ Done Editing' : '✏️ Edit'}
                 </button>
 
                 <button
@@ -1056,7 +1056,7 @@ export default function TestCaseCreator() {
                   disabled={editMode || selectedCount === 0}
                   style={editMode ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                   title={selectedCount === 0 && !editMode ? 'Select at least one test case' : undefined}>
-                  ⬇ Export CSV ({selectedCount})
+                  📤 Export CSV ({selectedCount})
                 </button>
               </div>
               {editMode && (
@@ -1068,7 +1068,7 @@ export default function TestCaseCreator() {
           </div>
 
           {showSuccess && (
-            <div style={{
+            <div className="alert-success-banner" style={{
               marginBottom: 12, padding: '10px 14px', borderRadius: 8,
               background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.35)',
               color: '#15803d', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8,
@@ -1076,7 +1076,7 @@ export default function TestCaseCreator() {
               <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" style={{ flexShrink: 0 }}>
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
               </svg>
-              Test cases generated successfully! Review below, select the ones you need, then export to CSV.
+              🎉 Test cases generated successfully! Review below, select the ones you need, then export to CSV.
             </div>
           )}
 
@@ -1201,7 +1201,7 @@ export default function TestCaseCreator() {
 
           <div className="nav-buttons" style={{ marginTop: 16 }}>
             <button className="btn-secondary" onClick={() => setStep(2)}>← Back to Review</button>
-            <button className="btn-primary" onClick={handleRestart}>Start Over</button>
+            <button className="btn-primary" onClick={handleRestart}>🔄 Start Over</button>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-# Test Orchestrator
+# TestingBuddy AI
 
 An AI-powered QA automation tool that fetches Jira requirements and generates professional test plans and Zephyr Scale-compatible test cases using multiple LLM providers.
 
@@ -6,7 +6,7 @@ An AI-powered QA automation tool that fetches Jira requirements and generates pr
 
 ## Overview
 
-Test Orchestrator is a full-stack web application with a React/TypeScript frontend and a Python FastAPI backend. It connects to Jira, pulls issue details, and uses an LLM (Falcon AI, Claude, Groq, Grok, or Ollama) to generate structured test plans and detailed test cases — ready for import into Zephyr Scale.
+TestingBuddy AI is a full-stack web application with a React/TypeScript frontend and a Python FastAPI backend. It connects to Jira, pulls issue details, and uses an LLM (Falcon AI, Claude, Groq, Grok, or Ollama) to generate structured test plans and detailed test cases — ready for import into Zephyr Scale.
 
 All generations are governed by **anti-hallucination rules** — the LLM only uses information explicitly provided in the Jira ticket. No invented behavior, no assumed defaults.
 

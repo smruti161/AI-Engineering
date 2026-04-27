@@ -2,6 +2,28 @@
   font-size: 0.9rem;
   line-height: 1.7;
   color: var(--text);
+  animation: fade-up 0.3s ease both;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Section headings slide in from left */
+@keyframes heading-enter {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.test-plan-body h1 { animation: heading-enter 0.35s ease both; }
+.test-plan-body h2 { animation: heading-enter 0.3s ease both; }
+.test-plan-body h2:hover { color: var(--accent); letter-spacing: 0.01em; transition: color 0.2s, letter-spacing 0.2s; }
+
+/* Table rows: left accent on hover */
+.test-plan-body tr { transition: background 0.15s; }
+.test-plan-body tbody tr:hover { background: var(--icon-bg) !important; }
+.test-plan-body th {
+  background: linear-gradient(90deg, var(--bg-stepper), var(--icon-bg));
 }
 .test-plan-body h1 { font-size: 1.5rem; margin: 24px 0 12px; color: var(--text-heading); border-bottom: 2px solid var(--border); padding-bottom: 8px; }
 .test-plan-body h2 { font-size: 1.2rem; margin: 20px 0 8px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
@@ -13,5 +35,7 @@
 .test-plan-body th, .test-plan-body td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
 .test-plan-body th { background: var(--bg-stepper); font-weight: 700; }
 .test-plan-body tr:nth-child(even) { background: var(--connection-bg); }
-.test-plan-body code { background: var(--bg-stepper); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); }
-.test-plan-body blockquote { border-left: 4px solid var(--accent); padding-left: 12px; color: var(--text-muted); margin: 8px 0; }
+.test-plan-body code { background: var(--bg-stepper); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); transition: background 0.15s, box-shadow 0.15s; }
+.test-plan-body code:hover { background: var(--icon-bg); box-shadow: 0 0 6px rgba(59,130,246,0.25); }
+.test-plan-body blockquote { border-left: 4px solid var(--accent); padding-left: 12px; color: var(--text-muted); margin: 8px 0; transition: border-color 0.2s, padding-left 0.2s; }
+.test-plan-body blockquote:hover { border-left-color: #60a5fa; padding-left: 18px; }

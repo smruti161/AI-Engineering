@@ -26,7 +26,7 @@ from tools.llm_client import LLMConnection, test_llm_connection
 from tools.test_plan_generator import run as generate_test_plan
 from tools.test_case_generator import run as generate_test_cases
 
-app = FastAPI(title="Test Orchestrator", version="1.0.0")
+app = FastAPI(title="TestingBuddy AI", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
