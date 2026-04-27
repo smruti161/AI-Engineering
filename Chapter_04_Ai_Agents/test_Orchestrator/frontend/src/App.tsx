@@ -176,9 +176,7 @@ export default function App() {
               </button>
             ))}
           </div>
-          {theme !== 'light' && (
-            <div className="sidebar-credit">© Smrutiranjan Maharana</div>
-          )}
+          <div className="sidebar-credit">© Smrutiranjan Maharana</div>
         </div>
       </aside>
 
