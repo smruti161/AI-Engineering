@@ -238,18 +238,7 @@ function renderCell(
 ): React.ReactNode {
   function captureClick(e: React.MouseEvent, li: number) {
     e.stopPropagation()
-    let offset: number | undefined
-    try {
-      // Standard (Chrome/Safari) — gives character offset at click point
-      const range = (document as any).caretRangeFromPoint?.(e.clientX, e.clientY)
-      if (range) { offset = range.startOffset }
-      // Firefox fallback
-      else {
-        const pos = (document as any).caretPositionFromPoint?.(e.clientX, e.clientY)
-        if (pos) offset = pos.offset
-      }
-    } catch { /* ignore */ }
-    onLineClick!(li, offset)
+    onLineClick!(li, -1)
   }
 
   if (!isNumberedList(value)) {
@@ -312,6 +301,7 @@ function renderCell(
 function LineEditor({
   value,
   originalValue,
+  isNumbered = true,
   onChange,
   onCommit,
   focusLine = 0,
@@ -319,6 +309,7 @@ function LineEditor({
 }: {
   value: string
   originalValue: string
+  isNumbered?: boolean
   onChange: (v: string) => void
   onCommit: () => void
   focusLine?: number
@@ -423,29 +414,46 @@ function LineEditor({
     }
   }
 
+  const showNumbers = isNumbered || lines.length > 1
+
   return (
-    <div onClick={e => e.stopPropagation()} style={{ width: '100%' }}>
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        width: '100%',
+        borderRadius: 4,
+        boxShadow: '0 0 0 2px var(--accent)',
+        padding: '3px 4px',
+        boxSizing: 'border-box',
+      }}
+    >
       {lines.map((line, i) => {
         const isNew = line.trim() !== '' && !originalSet.has(line.trim())
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginBottom: 2 }}>
-            <span style={{ color: isNew ? '#15803d' : 'var(--text-muted)', minWidth: 16, fontSize: '0.75rem', flexShrink: 0, paddingTop: 2 }}>
-              {i + 1}.
-            </span>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginBottom: i < lines.length - 1 ? 2 : 0 }}>
+            {showNumbers && (
+              <span style={{ color: isNew ? '#15803d' : 'var(--text-muted)', minWidth: 16, fontSize: '0.78rem', flexShrink: 0, paddingTop: 2 }}>
+                {i + 1}.
+              </span>
+            )}
             <textarea
               className="line-editor-input"
               value={line}
               rows={1}
               onChange={e => {
                 updateLine(i, e.target.value)
-                // auto-height
                 e.target.style.height = 'auto'
                 e.target.style.height = e.target.scrollHeight + 'px'
               }}
               onKeyDown={e => handleKeyDown(i, e)}
               onBlur={() => {
                 if (skipBlurRef.current) return
-                onCommit()
+                setTimeout(() => {
+                  if (skipBlurRef.current) return
+                  const active = document.activeElement
+                  if (active && (active as HTMLElement).classList.contains('line-editor-input')) return
+                  onCommit()
+                }, 0)
               }}
               ref={el => {
                 if (!el) return
@@ -455,12 +463,11 @@ function LineEditor({
               style={{
                 flex: 1,
                 border: 'none',
-                borderBottom: '1px solid var(--border)',
                 background: isNew ? 'rgba(34,197,94,0.12)' : 'transparent',
                 color: isNew ? '#15803d' : 'var(--text)',
                 fontSize: 'inherit',
                 fontFamily: 'inherit',
-                padding: '1px 4px',
+                padding: '0 2px',
                 outline: 'none',
                 lineHeight: 1.5,
                 resize: 'none',
@@ -1271,6 +1278,7 @@ export default function TestCaseCreator() {
                                       <LineEditor
                                         value={editValue}
                                         originalValue={originalEditValue}
+                                        isNumbered={editIsNumbered}
                                         onChange={setEditValue}
                                         onCommit={commitEdit}
                                         focusLine={editFocusLine}
