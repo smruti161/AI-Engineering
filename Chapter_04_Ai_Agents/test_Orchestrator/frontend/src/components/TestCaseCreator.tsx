@@ -524,6 +524,9 @@ export default function TestCaseCreator() {
   const [editCursorOffset, setEditCursorOffset] = useState(-1)
   // maps "si-ri-ci" → display-format value before any edits; used to keep green after commit
   const [originalCells, setOriginalCells] = useState<Record<string, string>>({})
+  // column widths set by drag-resize; index = column index (excluding checkbox col)
+  const [colWidths, setColWidths] = useState<number[]>([])
+  const resizingRef = useRef<{ ci: number; startX: number; startWidth: number } | null>(null)
 
   useEffect(() => {
     Promise.all([getConnections(), getLLMConnections()]).then(([j, l]) => {
@@ -783,7 +786,56 @@ export default function TestCaseCreator() {
     setEditValue('')
     setEditIsNumbered(false)
     setOriginalCells({})
+    setColWidths([])
     setShowSuccess(false)
+  }
+
+  function startResize(e: React.MouseEvent, ci: number) {
+    e.preventDefault()
+    e.stopPropagation()
+    const th = (e.currentTarget as HTMLElement).closest('th') as HTMLElement
+    const startWidth = th ? th.getBoundingClientRect().width : 120
+
+    // Snapshot all current column widths from the DOM so auto-sized columns
+    // don't snap back when we start forcing explicit widths
+    const table = th?.closest('table')
+    if (table) {
+      const allThs = Array.from(table.querySelectorAll('thead th')) as HTMLElement[]
+      const snapWidths = allThs.map(el => el.getBoundingClientRect().width)
+      // skip index 0 (checkbox column), map to data-column indices
+      setColWidths(snapWidths.slice(1))
+    }
+
+    resizingRef.current = { ci, startX: e.clientX, startWidth }
+
+    const onMouseMove = (mv: MouseEvent) => {
+      if (!resizingRef.current) return
+      const newWidth = Math.max(60, resizingRef.current.startWidth + (mv.clientX - resizingRef.current.startX))
+      setColWidths(prev => {
+        const next = [...prev]
+        next[resizingRef.current!.ci] = newWidth
+        return next
+      })
+    }
+    const onMouseUp = () => {
+      resizingRef.current = null
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }
+
+  function deleteSelected() {
+    setTables(prev =>
+      prev.map((sec, si) => ({
+        ...sec,
+        rows: sec.rows.filter((_, ri) => !selected.has(`${si}-${ri}`)),
+      })).filter(sec => sec.rows.length > 0)
+    )
+    setSelected(new Set())
+    setOriginalCells({})
+    setEditingCell(null)
   }
 
   const totalRows = tables.reduce((acc, sec) => acc + sec.rows.length, 0)
@@ -1050,6 +1102,17 @@ export default function TestCaseCreator() {
                   {editMode ? '✅ Done Editing' : '✏️ Edit'}
                 </button>
 
+                {editMode && selectedCount > 0 && (
+                  <button
+                    className="btn-danger"
+                    onClick={deleteSelected}
+                    title={`Delete ${selectedCount} selected test case${selectedCount !== 1 ? 's' : ''}`}
+                    style={{ padding: '7px 14px', fontSize: '0.82rem' }}
+                  >
+                    🗑️ Delete ({selectedCount})
+                  </button>
+                )}
+
                 <button
                   className="btn-primary"
                   onClick={handleExportCSV}
@@ -1143,8 +1206,36 @@ export default function TestCaseCreator() {
                     <table>
                       <thead>
                         <tr>
-                          <th style={{ width: 36, textAlign: 'center' }}></th>
-                          {sec.headers.map((h, hi) => <th key={hi}>{h}</th>)}
+                          <th style={{ width: 36, textAlign: 'center', flexShrink: 0 }}></th>
+                          {sec.headers.map((h, hi) => (
+                            <th key={hi}
+                              style={{
+                                position: 'relative',
+                                width: colWidths[hi] || undefined,
+                                minWidth: colWidths[hi] || 80,
+                                userSelect: 'none',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {h}
+                              {/* Drag-resize handle */}
+                              <span
+                                onMouseDown={e => startResize(e, hi)}
+                                style={{
+                                  position: 'absolute', right: 0, top: 0, bottom: 0,
+                                  width: 6, cursor: 'col-resize', zIndex: 2,
+                                  background: 'transparent',
+                                  borderRight: '2px solid transparent',
+                                  transition: 'border-color 0.15s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.borderRightColor = 'var(--accent)')}
+                                onMouseLeave={e => (e.currentTarget.style.borderRightColor = 'transparent')}
+                                title="Drag to resize column"
+                              />
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -1168,7 +1259,12 @@ export default function TestCaseCreator() {
                                 const cellKey = `${si}-${ri}-${ci}`
                                 return (
                                   <td key={ci}
-                                    style={{ cursor: editMode ? 'text' : 'default', verticalAlign: 'top' }}
+                                    style={{
+                                      cursor: editMode ? 'text' : 'default',
+                                      verticalAlign: 'top',
+                                      width: colWidths[ci] || undefined,
+                                      minWidth: colWidths[ci] || 80,
+                                    }}
                                     title={!editMode ? 'Click ✎ Edit to modify' : undefined}
                                     onClick={editMode && !isActive ? e => startEditing(si, ri, ci, 0, -1, e) : undefined}>
                                     {isActive ? (
