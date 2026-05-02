@@ -1,0 +1,269 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Node glow gradients -->
+    <radialGradient id="glow-blue" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(99,102,241,0.55)"/>
+      <stop offset="100%" stop-color="rgba(99,102,241,0)"/>
+    </radialGradient>
+    <radialGradient id="glow-indigo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(59,130,246,0.5)"/>
+      <stop offset="100%" stop-color="rgba(59,130,246,0)"/>
+    </radialGradient>
+    <radialGradient id="glow-violet" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(139,92,246,0.5)"/>
+      <stop offset="100%" stop-color="rgba(139,92,246,0)"/>
+    </radialGradient>
+    <radialGradient id="glow-hub" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(99,102,241,0.7)"/>
+      <stop offset="60%" stop-color="rgba(99,102,241,0.2)"/>
+      <stop offset="100%" stop-color="rgba(99,102,241,0)"/>
+    </radialGradient>
+    <!-- Blur filter for soft glow -->
+    <filter id="blur-sm" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
+    </filter>
+    <filter id="blur-lg" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8"/>
+    </filter>
+    <!-- Dashed line pattern -->
+    <marker id="arrow" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+      <circle cx="2" cy="2" r="1" fill="rgba(99,102,241,0.4)"/>
+    </marker>
+  </defs>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- NETWORK EDGES (draw first, behind nodes)       -->
+  <!-- ═══════════════════════════════════════════════ -->
+
+  <!-- Primary hub connections -->
+  <line x1="180" y1="200" x2="420" y2="140" stroke="rgba(99,102,241,0.22)" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <line x1="420" y1="140" x2="700" y2="180" stroke="rgba(99,102,241,0.22)" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <line x1="700" y1="180" x2="980" y2="130" stroke="rgba(99,102,241,0.22)" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <line x1="980" y1="130" x2="1260" y2="200" stroke="rgba(99,102,241,0.22)" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+  <!-- Vertical / diagonal connections -->
+  <line x1="180" y1="200" x2="300" y2="480" stroke="rgba(59,130,246,0.18)" stroke-width="1.2" stroke-dasharray="4,5"/>
+  <line x1="420" y1="140" x2="560" y2="380" stroke="rgba(59,130,246,0.18)" stroke-width="1.2" stroke-dasharray="4,5"/>
+  <line x1="700" y1="180" x2="700" y2="460" stroke="rgba(59,130,246,0.18)" stroke-width="1.2" stroke-dasharray="4,5"/>
+  <line x1="980" y1="130" x2="860" y2="400" stroke="rgba(59,130,246,0.18)" stroke-width="1.2" stroke-dasharray="4,5"/>
+  <line x1="1260" y1="200" x2="1100" y2="440" stroke="rgba(59,130,246,0.18)" stroke-width="1.2" stroke-dasharray="4,5"/>
+
+  <!-- Second row connections -->
+  <line x1="300" y1="480" x2="560" y2="380" stroke="rgba(139,92,246,0.20)" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <line x1="560" y1="380" x2="700" y2="460" stroke="rgba(139,92,246,0.20)" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <line x1="700" y1="460" x2="860" y2="400" stroke="rgba(139,92,246,0.20)" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <line x1="860" y1="400" x2="1100" y2="440" stroke="rgba(139,92,246,0.20)" stroke-width="1.4" stroke-dasharray="6,4"/>
+
+  <!-- Bottom row -->
+  <line x1="300" y1="480" x2="480" y2="700" stroke="rgba(99,102,241,0.15)" stroke-width="1.2" stroke-dasharray="4,6"/>
+  <line x1="560" y1="380" x2="700" y2="700" stroke="rgba(99,102,241,0.15)" stroke-width="1.2" stroke-dasharray="4,6"/>
+  <line x1="700" y1="460" x2="920" y2="680" stroke="rgba(99,102,241,0.15)" stroke-width="1.2" stroke-dasharray="4,6"/>
+  <line x1="1100" y1="440" x2="1200" y2="700" stroke="rgba(99,102,241,0.15)" stroke-width="1.2" stroke-dasharray="4,6"/>
+
+  <!-- Cross connections -->
+  <line x1="300" y1="480" x2="700" y2="460" stroke="rgba(59,130,246,0.12)" stroke-width="1"/>
+  <line x1="560" y1="380" x2="860" y2="400" stroke="rgba(59,130,246,0.12)" stroke-width="1"/>
+  <line x1="180" y1="200" x2="560" y2="380" stroke="rgba(59,130,246,0.12)" stroke-width="1"/>
+  <line x1="1260" y1="200" x2="860" y2="400" stroke="rgba(59,130,246,0.12)" stroke-width="1"/>
+
+  <!-- Bottom cross -->
+  <line x1="480" y1="700" x2="700" y2="700" stroke="rgba(139,92,246,0.14)" stroke-width="1.2" stroke-dasharray="5,5"/>
+  <line x1="700" y1="700" x2="920" y2="680" stroke="rgba(139,92,246,0.14)" stroke-width="1.2" stroke-dasharray="5,5"/>
+  <line x1="480" y1="700" x2="920" y2="680" stroke="rgba(99,102,241,0.10)" stroke-width="1"/>
+  <line x1="920" y1="680" x2="1200" y2="700" stroke="rgba(139,92,246,0.14)" stroke-width="1.2" stroke-dasharray="5,5"/>
+
+  <!-- Extra decorative connections -->
+  <line x1="80"  y1="450" x2="300" y2="480" stroke="rgba(99,102,241,0.13)" stroke-width="1" stroke-dasharray="3,6"/>
+  <line x1="80"  y1="450" x2="180" y2="200" stroke="rgba(99,102,241,0.13)" stroke-width="1" stroke-dasharray="3,6"/>
+  <line x1="1380" y1="500" x2="1260" y2="200" stroke="rgba(99,102,241,0.13)" stroke-width="1" stroke-dasharray="3,6"/>
+  <line x1="1380" y1="500" x2="1100" y2="440" stroke="rgba(99,102,241,0.13)" stroke-width="1" stroke-dasharray="3,6"/>
+  <line x1="700" y1="50"  x2="700" y2="180" stroke="rgba(139,92,246,0.16)" stroke-width="1.2" stroke-dasharray="4,5"/>
+  <line x1="700" y1="50"  x2="980" y2="130" stroke="rgba(139,92,246,0.13)" stroke-width="1" stroke-dasharray="3,6"/>
+  <line x1="700" y1="50"  x2="420" y2="140" stroke="rgba(139,92,246,0.13)" stroke-width="1" stroke-dasharray="3,6"/>
+  <line x1="480" y1="700" x2="300" y2="830" stroke="rgba(59,130,246,0.12)" stroke-width="1" stroke-dasharray="3,7"/>
+  <line x1="920" y1="680" x2="1080" y2="820" stroke="rgba(59,130,246,0.12)" stroke-width="1" stroke-dasharray="3,7"/>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- GLOW HALOS (soft blur rings behind hub nodes)  -->
+  <!-- ═══════════════════════════════════════════════ -->
+
+  <!-- Top-row hub halos -->
+  <circle cx="180" cy="200" r="50" fill="url(#glow-hub)" filter="url(#blur-lg)" opacity="0.6"/>
+  <circle cx="420" cy="140" r="44" fill="url(#glow-blue)" filter="url(#blur-lg)" opacity="0.6"/>
+  <circle cx="700" cy="180" r="50" fill="url(#glow-indigo)" filter="url(#blur-lg)" opacity="0.7"/>
+  <circle cx="980" cy="130" r="44" fill="url(#glow-blue)" filter="url(#blur-lg)" opacity="0.6"/>
+  <circle cx="1260" cy="200" r="50" fill="url(#glow-hub)" filter="url(#blur-lg)" opacity="0.6"/>
+
+  <!-- Mid-row hub halos -->
+  <circle cx="300"  cy="480" r="40" fill="url(#glow-violet)" filter="url(#blur-lg)" opacity="0.55"/>
+  <circle cx="560"  cy="380" r="38" fill="url(#glow-blue)"   filter="url(#blur-lg)" opacity="0.55"/>
+  <circle cx="700"  cy="460" r="44" fill="url(#glow-hub)"    filter="url(#blur-lg)" opacity="0.65"/>
+  <circle cx="860"  cy="400" r="38" fill="url(#glow-blue)"   filter="url(#blur-lg)" opacity="0.55"/>
+  <circle cx="1100" cy="440" r="40" fill="url(#glow-violet)" filter="url(#blur-lg)" opacity="0.55"/>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- HUB NODES — TOP ROW                           -->
+  <!-- ═══════════════════════════════════════════════ -->
+
+  <!-- Node: Fetch Issues -->
+  <circle cx="180" cy="200" r="28" fill="rgba(99,102,241,0.18)" stroke="rgba(99,102,241,0.55)" stroke-width="1.5"/>
+  <circle cx="180" cy="200" r="18" fill="rgba(99,102,241,0.30)" stroke="rgba(99,102,241,0.70)" stroke-width="1"/>
+  <text x="180" y="196" text-anchor="middle" font-size="13" fill="rgba(99,102,241,0.9)" font-family="monospace">📥</text>
+  <text x="180" y="238" text-anchor="middle" font-size="8.5" fill="rgba(99,102,241,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">FETCH</text>
+
+  <!-- Node: Review -->
+  <circle cx="420" cy="140" r="24" fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.55)" stroke-width="1.5"/>
+  <circle cx="420" cy="140" r="14" fill="rgba(59,130,246,0.30)" stroke="rgba(59,130,246,0.70)" stroke-width="1"/>
+  <text x="420" y="136" text-anchor="middle" font-size="11" fill="rgba(59,130,246,0.9)" font-family="monospace">🔍</text>
+  <text x="420" y="174" text-anchor="middle" font-size="8" fill="rgba(59,130,246,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">REVIEW</text>
+
+  <!-- Node: AI Core (center top — most prominent) -->
+  <circle cx="700" cy="180" r="36" fill="rgba(99,102,241,0.16)" stroke="rgba(99,102,241,0.50)" stroke-width="2"/>
+  <circle cx="700" cy="180" r="24" fill="rgba(99,102,241,0.28)" stroke="rgba(99,102,241,0.65)" stroke-width="1.5"/>
+  <circle cx="700" cy="180" r="12" fill="rgba(99,102,241,0.50)" stroke="rgba(99,102,241,0.85)" stroke-width="1"/>
+  <text x="700" y="176" text-anchor="middle" font-size="12" fill="rgba(99,102,241,1)" font-family="monospace">🤖</text>
+  <text x="700" y="226" text-anchor="middle" font-size="9" fill="rgba(99,102,241,0.70)" font-family="sans-serif" font-weight="700" letter-spacing="0.06em">AI ENGINE</text>
+
+  <!-- Node: Test Plan -->
+  <circle cx="980" cy="130" r="24" fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.55)" stroke-width="1.5"/>
+  <circle cx="980" cy="130" r="14" fill="rgba(59,130,246,0.30)" stroke="rgba(59,130,246,0.70)" stroke-width="1"/>
+  <text x="980" y="126" text-anchor="middle" font-size="11" fill="rgba(59,130,246,0.9)" font-family="monospace">📋</text>
+  <text x="980" y="163" text-anchor="middle" font-size="8" fill="rgba(59,130,246,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">PLAN</text>
+
+  <!-- Node: Export/Jira -->
+  <circle cx="1260" cy="200" r="28" fill="rgba(99,102,241,0.18)" stroke="rgba(99,102,241,0.55)" stroke-width="1.5"/>
+  <circle cx="1260" cy="200" r="18" fill="rgba(99,102,241,0.30)" stroke="rgba(99,102,241,0.70)" stroke-width="1"/>
+  <text x="1260" y="196" text-anchor="middle" font-size="13" fill="rgba(99,102,241,0.9)" font-family="monospace">📤</text>
+  <text x="1260" y="238" text-anchor="middle" font-size="8.5" fill="rgba(99,102,241,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">EXPORT</text>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- HUB NODES — MID ROW                           -->
+  <!-- ═══════════════════════════════════════════════ -->
+
+  <!-- Node: Jira Connection -->
+  <circle cx="300" cy="480" r="26" fill="rgba(139,92,246,0.18)" stroke="rgba(139,92,246,0.50)" stroke-width="1.5"/>
+  <circle cx="300" cy="480" r="16" fill="rgba(139,92,246,0.28)" stroke="rgba(139,92,246,0.65)" stroke-width="1"/>
+  <text x="300" y="476" text-anchor="middle" font-size="12" fill="rgba(139,92,246,0.9)" font-family="monospace">🔗</text>
+  <text x="300" y="515" text-anchor="middle" font-size="8" fill="rgba(139,92,246,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">JIRA</text>
+
+  <!-- Node: LLM -->
+  <circle cx="560" cy="380" r="24" fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.50)" stroke-width="1.5"/>
+  <circle cx="560" cy="380" r="14" fill="rgba(59,130,246,0.28)" stroke="rgba(59,130,246,0.65)" stroke-width="1"/>
+  <text x="560" y="376" text-anchor="middle" font-size="11" fill="rgba(59,130,246,0.9)" font-family="monospace">⚡</text>
+  <text x="560" y="412" text-anchor="middle" font-size="8" fill="rgba(59,130,246,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">LLM</text>
+
+  <!-- Node: Generate (center mid — prominent) -->
+  <circle cx="700" cy="460" r="32" fill="rgba(99,102,241,0.16)" stroke="rgba(99,102,241,0.48)" stroke-width="2"/>
+  <circle cx="700" cy="460" r="20" fill="rgba(99,102,241,0.26)" stroke="rgba(99,102,241,0.60)" stroke-width="1.5"/>
+  <circle cx="700" cy="460" r="10" fill="rgba(99,102,241,0.45)" stroke="rgba(99,102,241,0.80)" stroke-width="1"/>
+  <text x="700" y="456" text-anchor="middle" font-size="11" fill="rgba(99,102,241,0.95)" font-family="monospace">🧪</text>
+  <text x="700" y="502" text-anchor="middle" font-size="9" fill="rgba(99,102,241,0.70)" font-family="sans-serif" font-weight="700" letter-spacing="0.06em">GENERATE</text>
+
+  <!-- Node: Validate -->
+  <circle cx="860" cy="400" r="24" fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.50)" stroke-width="1.5"/>
+  <circle cx="860" cy="400" r="14" fill="rgba(59,130,246,0.28)" stroke="rgba(59,130,246,0.65)" stroke-width="1"/>
+  <text x="860" y="396" text-anchor="middle" font-size="11" fill="rgba(59,130,246,0.9)" font-family="monospace">✅</text>
+  <text x="860" y="432" text-anchor="middle" font-size="8" fill="rgba(59,130,246,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">VALIDATE</text>
+
+  <!-- Node: Falcon AI -->
+  <circle cx="1100" cy="440" r="26" fill="rgba(139,92,246,0.18)" stroke="rgba(139,92,246,0.50)" stroke-width="1.5"/>
+  <circle cx="1100" cy="440" r="16" fill="rgba(139,92,246,0.28)" stroke="rgba(139,92,246,0.65)" stroke-width="1"/>
+  <text x="1100" y="436" text-anchor="middle" font-size="12" fill="rgba(139,92,246,0.9)" font-family="monospace">🦅</text>
+  <text x="1100" y="474" text-anchor="middle" font-size="8" fill="rgba(139,92,246,0.65)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">FALCON AI</text>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- BOTTOM ROW NODES                              -->
+  <!-- ═══════════════════════════════════════════════ -->
+
+  <circle cx="480" cy="700" r="22" fill="rgba(99,102,241,0.15)" stroke="rgba(99,102,241,0.42)" stroke-width="1.5"/>
+  <circle cx="480" cy="700" r="12" fill="rgba(99,102,241,0.25)" stroke="rgba(99,102,241,0.58)" stroke-width="1"/>
+  <text x="480" y="696" text-anchor="middle" font-size="10" fill="rgba(99,102,241,0.85)" font-family="monospace">📝</text>
+  <text x="480" y="731" text-anchor="middle" font-size="7.5" fill="rgba(99,102,241,0.60)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">TEST CASES</text>
+
+  <circle cx="700" cy="700" r="20" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.40)" stroke-width="1.5"/>
+  <circle cx="700" cy="700" r="11" fill="rgba(59,130,246,0.25)" stroke="rgba(59,130,246,0.55)" stroke-width="1"/>
+  <text x="700" y="696" text-anchor="middle" font-size="10" fill="rgba(59,130,246,0.85)" font-family="monospace">📊</text>
+  <text x="700" y="729" text-anchor="middle" font-size="7.5" fill="rgba(59,130,246,0.60)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">REPORT</text>
+
+  <circle cx="920" cy="680" r="22" fill="rgba(139,92,246,0.15)" stroke="rgba(139,92,246,0.40)" stroke-width="1.5"/>
+  <circle cx="920" cy="680" r="12" fill="rgba(139,92,246,0.25)" stroke="rgba(139,92,246,0.55)" stroke-width="1"/>
+  <text x="920" y="676" text-anchor="middle" font-size="10" fill="rgba(139,92,246,0.85)" font-family="monospace">🎯</text>
+  <text x="920" y="711" text-anchor="middle" font-size="7.5" fill="rgba(139,92,246,0.60)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">COVERAGE</text>
+
+  <circle cx="1200" cy="700" r="20" fill="rgba(99,102,241,0.15)" stroke="rgba(99,102,241,0.40)" stroke-width="1.5"/>
+  <circle cx="1200" cy="700" r="11" fill="rgba(99,102,241,0.25)" stroke="rgba(99,102,241,0.55)" stroke-width="1"/>
+  <text x="1200" y="696" text-anchor="middle" font-size="10" fill="rgba(99,102,241,0.85)" font-family="monospace">✔️</text>
+  <text x="1200" y="729" text-anchor="middle" font-size="7.5" fill="rgba(99,102,241,0.60)" font-family="sans-serif" font-weight="600" letter-spacing="0.04em">PASS</text>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- EDGE / ACCENT NODES (small satellites)        -->
+  <!-- ═══════════════════════════════════════════════ -->
+
+  <circle cx="80"  cy="450" r="12" fill="rgba(99,102,241,0.20)" stroke="rgba(99,102,241,0.45)" stroke-width="1.2"/>
+  <circle cx="80"  cy="450" r="5"  fill="rgba(99,102,241,0.40)"/>
+
+  <circle cx="1380" cy="500" r="12" fill="rgba(139,92,246,0.20)" stroke="rgba(139,92,246,0.45)" stroke-width="1.2"/>
+  <circle cx="1380" cy="500" r="5"  fill="rgba(139,92,246,0.40)"/>
+
+  <circle cx="700" cy="50" r="14" fill="rgba(99,102,241,0.20)" stroke="rgba(99,102,241,0.45)" stroke-width="1.2"/>
+  <circle cx="700" cy="50" r="6"  fill="rgba(99,102,241,0.40)"/>
+  <text x="700" y="46" text-anchor="middle" font-size="8" fill="rgba(99,102,241,0.80)" font-family="monospace">✦</text>
+
+  <circle cx="300" cy="830" r="10" fill="rgba(59,130,246,0.18)" stroke="rgba(59,130,246,0.40)" stroke-width="1"/>
+  <circle cx="300" cy="830" r="4"  fill="rgba(59,130,246,0.38)"/>
+
+  <circle cx="1080" cy="820" r="10" fill="rgba(139,92,246,0.18)" stroke="rgba(139,92,246,0.40)" stroke-width="1"/>
+  <circle cx="1080" cy="820" r="4"  fill="rgba(139,92,246,0.38)"/>
+
+  <!-- Tiny satellite nodes -->
+  <circle cx="90"  cy="160" r="5" fill="rgba(99,102,241,0.25)" stroke="rgba(99,102,241,0.40)" stroke-width="1"/>
+  <circle cx="340" cy="280" r="5" fill="rgba(59,130,246,0.25)" stroke="rgba(59,130,246,0.40)" stroke-width="1"/>
+  <circle cx="600" cy="280" r="5" fill="rgba(99,102,241,0.25)" stroke="rgba(99,102,241,0.40)" stroke-width="1"/>
+  <circle cx="870" cy="260" r="5" fill="rgba(59,130,246,0.25)" stroke="rgba(59,130,246,0.40)" stroke-width="1"/>
+  <circle cx="1140" cy="120" r="5" fill="rgba(99,102,241,0.25)" stroke="rgba(99,102,241,0.40)" stroke-width="1"/>
+  <circle cx="1360" cy="330" r="5" fill="rgba(139,92,246,0.25)" stroke="rgba(139,92,246,0.40)" stroke-width="1"/>
+  <circle cx="150" cy="650" r="5" fill="rgba(99,102,241,0.22)" stroke="rgba(99,102,241,0.38)" stroke-width="1"/>
+  <circle cx="440" cy="570" r="5" fill="rgba(59,130,246,0.22)" stroke="rgba(59,130,246,0.38)" stroke-width="1"/>
+  <circle cx="780" cy="580" r="5" fill="rgba(99,102,241,0.22)" stroke="rgba(99,102,241,0.38)" stroke-width="1"/>
+  <circle cx="1000" cy="550" r="5" fill="rgba(139,92,246,0.22)" stroke="rgba(139,92,246,0.38)" stroke-width="1"/>
+  <circle cx="1300" cy="580" r="5" fill="rgba(99,102,241,0.22)" stroke="rgba(99,102,241,0.38)" stroke-width="1"/>
+  <circle cx="600" cy="800" r="5" fill="rgba(59,130,246,0.20)" stroke="rgba(59,130,246,0.36)" stroke-width="1"/>
+  <circle cx="820" cy="780" r="5" fill="rgba(99,102,241,0.20)" stroke="rgba(99,102,241,0.36)" stroke-width="1"/>
+
+  <!-- Satellite edge connections -->
+  <line x1="90"  y1="160" x2="180" y2="200" stroke="rgba(99,102,241,0.12)" stroke-width="0.8"/>
+  <line x1="340" y1="280" x2="420" y2="140" stroke="rgba(59,130,246,0.12)" stroke-width="0.8"/>
+  <line x1="340" y1="280" x2="560" y2="380" stroke="rgba(59,130,246,0.10)" stroke-width="0.8"/>
+  <line x1="600" y1="280" x2="700" y2="180" stroke="rgba(99,102,241,0.12)" stroke-width="0.8"/>
+  <line x1="600" y1="280" x2="560" y2="380" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+  <line x1="870" y1="260" x2="980" y2="130" stroke="rgba(59,130,246,0.12)" stroke-width="0.8"/>
+  <line x1="870" y1="260" x2="860" y2="400" stroke="rgba(59,130,246,0.10)" stroke-width="0.8"/>
+  <line x1="1140" y1="120" x2="980" y2="130" stroke="rgba(99,102,241,0.12)" stroke-width="0.8"/>
+  <line x1="1140" y1="120" x2="1260" y2="200" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+  <line x1="1360" y1="330" x2="1260" y2="200" stroke="rgba(139,92,246,0.12)" stroke-width="0.8"/>
+  <line x1="1360" y1="330" x2="1100" y2="440" stroke="rgba(139,92,246,0.10)" stroke-width="0.8"/>
+  <line x1="150" y1="650" x2="300"  y2="480" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+  <line x1="440" y1="570" x2="560"  y2="380" stroke="rgba(59,130,246,0.10)" stroke-width="0.8"/>
+  <line x1="440" y1="570" x2="300"  y2="480" stroke="rgba(59,130,246,0.10)" stroke-width="0.8"/>
+  <line x1="780" y1="580" x2="700"  y2="460" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+  <line x1="1000" y1="550" x2="860" y2="400" stroke="rgba(139,92,246,0.10)" stroke-width="0.8"/>
+  <line x1="1300" y1="580" x2="1100" y2="440" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+  <line x1="600" y1="800" x2="480"  y2="700" stroke="rgba(59,130,246,0.10)" stroke-width="0.8"/>
+  <line x1="600" y1="800" x2="700"  y2="700" stroke="rgba(59,130,246,0.10)" stroke-width="0.8"/>
+  <line x1="820" y1="780" x2="700"  y2="700" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+  <line x1="820" y1="780" x2="920"  y2="680" stroke="rgba(99,102,241,0.10)" stroke-width="0.8"/>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- BRAND WATERMARK (very subtle, center)          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <text x="720" y="340" text-anchor="middle"
+        font-size="72" font-family="sans-serif" font-weight="900"
+        fill="rgba(99,102,241,0.04)" letter-spacing="0.02em">
+    TestingBuddy AI
+  </text>
+
+  <!-- Pulsing ring on AI Engine node (decorative outer ring) -->
+  <circle cx="700" cy="180" r="48" fill="none" stroke="rgba(99,102,241,0.18)" stroke-width="1" stroke-dasharray="8,6"/>
+  <!-- Pulsing ring on Generate node -->
+  <circle cx="700" cy="460" r="42" fill="none" stroke="rgba(99,102,241,0.15)" stroke-width="1" stroke-dasharray="6,5"/>
+</svg>

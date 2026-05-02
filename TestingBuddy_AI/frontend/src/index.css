@@ -1,0 +1,157 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Light theme (default) ── */
+:root, [data-theme="light"] {
+  --dot-color: rgba(59,130,246,0.13);
+  --orb-color: rgba(59,130,246,0.18);
+  --mesh-a: rgba(99,102,241,0.16);
+  --mesh-b: rgba(59,130,246,0.13);
+  --mesh-c: rgba(139,92,246,0.11);
+  --bg: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-stepper: #f1f5f9;
+  --bg-step-active: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-heading: #0f172a;
+  --border: #e2e8f0;
+  --border-input: #d1d5db;
+  --btn-primary: #2563eb;
+  --btn-primary-hover: #1d4ed8;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-border: #d1d5db;
+  --accent: #3b82f6;
+  --icon-bg: #eff6ff;
+  --connection-bg: #f8fafc;
+  --connected-bg: #f0fdf4;
+  --connected-border: #bbf7d0;
+  --connected-text: #166534;
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --dot-color: rgba(96,165,250,0.09);
+  --orb-color: rgba(96,165,250,0.18);
+  --mesh-a: rgba(99,102,241,0.15);
+  --mesh-b: rgba(96,165,250,0.12);
+  --mesh-c: rgba(139,92,246,0.10);
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --bg-input: #253347;
+  --bg-stepper: #1e293b;
+  --bg-step-active: #334155;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-heading: #f1f5f9;
+  --border: #334155;
+  --border-input: #475569;
+  --btn-primary: #3b82f6;
+  --btn-primary-hover: #2563eb;
+  --btn-secondary-bg: #253347;
+  --btn-secondary-border: #475569;
+  --accent: #60a5fa;
+  --icon-bg: #1e3a5f;
+  --connection-bg: #253347;
+  --connected-bg: #052e16;
+  --connected-border: #166534;
+  --connected-text: #4ade80;
+}
+
+/* ── Ocean theme ── */
+[data-theme="ocean"] {
+  --dot-color: rgba(56,189,248,0.11);
+  --orb-color: rgba(56,189,248,0.22);
+  --mesh-a: rgba(14,165,233,0.18);
+  --mesh-b: rgba(56,189,248,0.14);
+  --mesh-c: rgba(6,182,212,0.12);
+  --bg: #081c2e;
+  --bg-card: #0d2640;
+  --bg-input: #102d4a;
+  --bg-stepper: #0d2640;
+  --bg-step-active: #153860;
+  --text: #b8d8f0;
+  --text-muted: #5a8aaa;
+  --text-heading: #d8eeff;
+  --border: #153860;
+  --border-input: #1a4570;
+  --btn-primary: #0ea5e9;
+  --btn-primary-hover: #0284c7;
+  --btn-secondary-bg: #102d4a;
+  --btn-secondary-border: #1a4570;
+  --accent: #38bdf8;
+  --icon-bg: #0c2a52;
+  --connection-bg: #102d4a;
+  --connected-bg: #042a1c;
+  --connected-border: #065f46;
+  --connected-text: #34d399;
+}
+
+/* ── Forest theme ── */
+[data-theme="forest"] {
+  --dot-color: rgba(74,222,128,0.11);
+  --orb-color: rgba(74,222,128,0.20);
+  --mesh-a: rgba(22,163,74,0.18);
+  --mesh-b: rgba(74,222,128,0.14);
+  --mesh-c: rgba(16,185,129,0.12);
+  --bg: #071a0c;
+  --bg-card: #0a2211;
+  --bg-input: #0c2a16;
+  --bg-stepper: #0a2211;
+  --bg-step-active: #10351a;
+  --text: #a8d8b8;
+  --text-muted: #4a8a60;
+  --text-heading: #c8f0d8;
+  --border: #10351a;
+  --border-input: #154222;
+  --btn-primary: #16a34a;
+  --btn-primary-hover: #15803d;
+  --btn-secondary-bg: #0c2a16;
+  --btn-secondary-border: #154222;
+  --accent: #4ade80;
+  --icon-bg: #0a2e14;
+  --connection-bg: #0c2a16;
+  --connected-bg: #052e16;
+  --connected-border: #166534;
+  --connected-text: #4ade80;
+}
+
+/* ── Sunset theme ── */
+[data-theme="sunset"] {
+  --dot-color: rgba(192,132,252,0.11);
+  --orb-color: rgba(192,132,252,0.22);
+  --mesh-a: rgba(147,51,234,0.18);
+  --mesh-b: rgba(192,132,252,0.14);
+  --mesh-c: rgba(236,72,153,0.12);
+  --bg: #12061c;
+  --bg-card: #1c0c2e;
+  --bg-input: #22103a;
+  --bg-stepper: #1c0c2e;
+  --bg-step-active: #2e1650;
+  --text: #e8c8f8;
+  --text-muted: #8860a8;
+  --text-heading: #f8e8ff;
+  --border: #2e1650;
+  --border-input: #3c1e6a;
+  --btn-primary: #9333ea;
+  --btn-primary-hover: #7e22ce;
+  --btn-secondary-bg: #22103a;
+  --btn-secondary-border: #3c1e6a;
+  --accent: #c084fc;
+  --icon-bg: #260d48;
+  --connection-bg: #22103a;
+  --connected-bg: #052e16;
+  --connected-border: #166534;
+  --connected-text: #4ade80;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; }
